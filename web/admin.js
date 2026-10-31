@@ -133,6 +133,7 @@ async function loadDashboard() {
     });
     if (!response.ok) throw new Error("HTTP " + response.status);
     const data = await response.json();
+    window.latestResearchDocuments = data.recent_documents || [];
     document.getElementById("db-status").textContent = data.database;
     const sources = data.sources || {};
     const jobs = data.jobs || {};
@@ -150,10 +151,7 @@ async function loadDashboard() {
       { key: "status" }, { key: "url", link: "url" },
       { key: "discovered" }, { key: "updated_at" }
     ], "अभी कोई crawl job नहीं है।");
-    renderRows("recent-documents", data.recent_documents, [
-      { key: "title", link: "url" }, { key: "type" },
-      { key: "status" }, { key: "created_at" }
-    ], "अभी कोई दस्तावेज़ सुरक्षित नहीं हुआ है।");
+    renderDocumentRows(data.recent_documents);
     statusNode.textContent = "Live database आँकड़े अपडेट हुए: " + new Date().toLocaleTimeString();
   } catch (error) {
     statusNode.textContent = "Live dashboard उपलब्ध नहीं: " + error.message;
@@ -201,6 +199,7 @@ sourceForm.addEventListener("submit", async (event) => {
 
 document.getElementById("admin-token").addEventListener("input", (event) => {
   activeAdminToken = event.target.value;
+  renderDocumentRows(window.latestResearchDocuments || []);
 });
 
 refreshButton.addEventListener("click", loadDashboard);
