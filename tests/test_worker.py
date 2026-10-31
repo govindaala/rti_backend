@@ -1,6 +1,8 @@
 # रिपॉजिटरी पथ: rti_backend/tests/test_worker.py
 """Continuous worker loop और graceful stop के unit tests."""
 
+import httpx
+
 from app import worker
 
 
@@ -39,3 +41,18 @@ def test_worker_schedules_due_source_when_queue_is_empty(monkeypatch) -> None:
     worker.run_worker(poll_seconds=0, idle_seconds=0)
     assert calls == {"process": 2, "schedule": 1}
     worker.STOP.clear()
+
+
+def test_retry_policy_only_retries_transient_failures() -> None:
+    """Network errors and selected transient HTTP statuses retry; 404 does not."""
+    assert worker._is_retryable_error(httpx.ConnectError("temporary"))
+    request = httpx.Request("GET", "https://cic.gov.in/")
+    transient = httpx.Response(503, request=request)
+    permanent = httpx.Response(404, request=request)
+    assert worker._is_retryable_error(
+        httpx.HTTPStatusError("temporary", request=request, response=transient)
+    )
+    assert not worker._is_retryable_error(
+        httpx.HTTPStatusError("not found", request=request, response=permanent)
+    )
+    assert not worker._is_retryable_error(ValueError("unsupported type"))
