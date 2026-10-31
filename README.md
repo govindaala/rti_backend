@@ -1,55 +1,79 @@
 # RTI Intelligence Platform — Backend
 
-यह रिपोजिटरी RTI Intelligence Platform के बैकएंड की आधारभूत संरचना है।
+प्रमाण-आधारित RTI कानूनी शोध प्लेटफ़ॉर्म का FastAPI backend.
 
-## उद्देश्य
-- Applicant Intelligence और PIO Intelligence के लिए साझा, सत्यापित कानूनी ज्ञान-संग्रह।
-- कानून, आधिकारिक स्रोत और निर्णयों के प्रमाण के साथ विश्लेषण।
-- यह प्लेटफ़ॉर्म RTI आवेदन या अपील अपने-आप दाखिल नहीं करेगा।
-- उपयोगकर्ता दस्तावेज़ों को साझा ज्ञान-संग्रह में जोड़ने से पहले स्पष्ट सहमति, पहचान हटाना और समीक्षा आवश्यक होगी।
+## स्थायी सिद्धांत
+- Applicant और PIO analysis एक ही सत्यापित legal corpus से facts और law लेते हैं; केवल विश्लेषण का दृष्टिकोण बदलता है।
+- कोई बाहरी AI-provider/model API नहीं। Supabase केवल PostgreSQL storage है।
+- कोई RTI आवेदन/अपील स्वतः दाखिल नहीं होगी।
+- सरकारी domain होना किसी निर्णय के पाठ या कानूनी स्थिति का प्रमाण नहीं; human verification आवश्यक है।
+- उपयोगकर्ता दस्तावेज़ साझा corpus में जोड़ने से पहले सहमति, पहचान हटाना और समीक्षा आवश्यक है।
 
-## पहला चरण
-FastAPI सेवा, कॉन्फ़िगरेशन, हेल्थ API और स्वचालित परीक्षण। PostgreSQL connectivity layer भी जोड़ी गई है; वास्तविक database schema और legal-data persistence अगले चरण हैं।
-
-## स्थानीय रूप से चलाएँ
-Python 3.11 या नया संस्करण आवश्यक है।
-
-```bash
+## Local run
+Python 3.11+
+\`\`\`bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 uvicorn app.main:app --reload
-```
+\`\`\`
 
-हेल्थ जाँच: `http://127.0.0.1:8000/api/v1/health`
-डेटाबेस कनेक्शन जाँच: `http://127.0.0.1:8000/api/v1/health/database`
-API दस्तावेज़: `http://127.0.0.1:8000/docs`
+## Live endpoints
+- \`GET /api/v1/health\`
+- \`GET /api/v1/health/database\`
+- \`GET /api/v1/admin/dashboard\` — live aggregate metrics और हाल की crawl activity
+- \`POST /api/v1/admin/sources\` — \`X-Admin-Token\` आवश्यक; source queue में डालता है
+- \`POST /api/v1/research/search\` — केवल \`verified\` कानूनी दस्तावेज़ों में खोज
+- \`POST /api/v1/analysis/checklist\` — Applicant/PIO के लिए नियम-आधारित प्रारंभिक checklist
+- \`POST /api/v1/drafts/rti\` — हिन्दी/English RTI आवेदन मसौदा; कोई auto-submit नहीं
+- \`POST /api/v1/drafts/first-appeal\` — धारा 19(1) के अंतर्गत प्रथम अपील मसौदा; कोई auto-submit नहीं
+- \`GET /app\` — user interface
+- \`GET /admin\` — live operations dashboard और token-protected source intake
+- \`GET /docs\` — API schema
 
-## Supabase PostgreSQL configuration
+## Supabase configuration
+Render/server environment में \`DATABASE_URL\` सेट करें। इसे GitHub, browser, chat या README में न रखें। पहले साझा किया गया database password अब सुरक्षित नहीं माना जाना चाहिए; इस्तेमाल से पहले Supabase में rotate करें। न्यूनतम अधिकार वाला database role उपयोग करें। \`rti\` schema private रहे और service credentials browser में न जाएँ।
 
-- Supabase का उपयोग केवल PostgreSQL data storage के लिए होगा; किसी बाहरी AI model या AI inference API के लिए नहीं।
-- `DATABASE_URL` को hosting provider के server-side Environment Variables में रखें। इसे GitHub source, frontend, issue या chat में न डालें।
-- स्थानीय परीक्षण के लिए निजी `.env` फाइल का उपयोग किया जा सकता है; `.env` Git से ignore है।
-- `.env.example` में केवल खाली placeholder है, कोई credential नहीं।
-- `GET /api/v1/health/database` सिर्फ `connected`, `not_configured` या `unavailable` लौटाता है; credentials और raw database errors उजागर नहीं करता।
-- इस चरण में कोई कानूनी डेटा टेबल, migration या sample legal record नहीं बनाया गया है।
+मौजूदा Supabase project में \`rti.research_sources\`, \`rti.crawl_jobs\`, \`rti.legal_documents\` और crawl event tables मौजूद हैं; worker इन्हीं tables को durable queue और document store की तरह उपयोग करता है। कोई नया migration इस PR में लागू नहीं होता।
 
-## सुरक्षा
+## Continuous official-source crawler
+- Admin में allowlisted HTTPS सरकारी/न्यायिक URL डालें और server-side \`ADMIN_API_TOKEN\` से approve करें।
+- Source और job PostgreSQL में persist होते हैं; browser बंद होने पर भी queue सुरक्षित रहती है।
+- Worker queue से jobs claim करता है, \`robots.txt\` का पालन करता है, redirects/custom ports/credentials अस्वीकार करता है और केवल उसी host के legal-path/PDF links discover करता है।
+- Per page अधिकतम 25 candidate links और प्रति crawl cycle प्रति source अधिकतम 250 jobs की सीमा है; fetch timeout और byte size सीमित हैं।
+- PDF/HTML text, title, source URL और SHA-256 hash database में सुरक्षित होते हैं। Document type केवल preliminary URL/title classification है।
+- हर नया दस्तावेज़ \`review_required\` में रहता है। यह स्वतः verified नहीं होता और legal research API में तब तक उपलब्ध नहीं होगा जब तक authorized reviewer उसे verify न करे।
+- Login walls, CAPTCHA, robots disallow, paywalls या technical access controls को bypass नहीं किया जाता। External links और non-allowlisted domains crawl नहीं होते।
 
-वास्तविक API keys, पासवर्ड या उपयोगकर्ता दस्तावेज़ GitHub में commit न करें। Production में database के लिए न्यूनतम अधिकार वाला अलग database role उपयोग करें; Supabase के उच्च-अधिकार वाले service credentials को browser/frontend में कभी न रखें।
+### Continuous worker
+Local one-shot:
+\`\`\`bash
+python -m app.worker --once
+\`\`\`
+Continuous polling:
+\`\`\`bash
+python -m app.worker --poll
+\`\`\`
+Worker SIGTERM/SIGINT पर नया job लेना रोकता है और चल रहा job पूरा होने के बाद बंद होता है।
 
-## बाहरी API निर्भरता नीति
+### Render deployment requirement
+\`render.yaml\` में अलग Render Background Worker परिभाषित है। इसे deploy करने पर Render Starter compute plan वाला अलग worker resource बनेगा और recurring paid compute charge लगेगा। मौजूदा account में backend web service Free plan पर है; वह idle होने पर sleep करती है और उसे 24×7 worker नहीं माना जा सकता। Render की service-type documentation के अनुसार always-on queue consumer के लिए Background Worker उपयुक्त है। Worker के लिए \`DATABASE_URL\` और web service के लिए \`DATABASE_URL\` तथा \`ADMIN_API_TOKEN\` configure करें। Secrets केवल Render Environment में रखें।
 
-इस backend में किसी बाहरी AI-provider API या third-party AI model को जोड़ना स्वीकार्य नहीं है। ऑनलाइन database का उपयोग केवल डेटा पढ़ने-लिखने के लिए किया जा सकता है। कानूनी स्रोतों के लिए सरकारी वेबसाइटों के सार्वजनिक पृष्ठों को अपने लिखे हुए fetcher/parser से पढ़ा जाएगा; किसी vendor search API पर निर्भरता नहीं होगी। AI inference को अपने नियंत्रित runtime में चलाने की अलग engineering आवश्यकता है।
+**अभी worker deployed नहीं है।** Blueprint को GitHub में merge/push और Render में sync/deploy करने के बाद ही 24×7 execution शुरू होगा। इस PR को merge करना या paid service create करना अपने-आप नहीं किया गया है।
 
-## यूजर और Admin UI
+## Admin security
+Dashboard बिना token के केवल public aggregate आँकड़े और public document metadata दिखाता है। Source submission के लिए \`ADMIN_API_TOKEN\` आवश्यक है। Token केवल request header में भेजा जाता है, browser storage में save नहीं होता। Production में HTTPS और मजबूत random token अनिवार्य हैं।
 
-- यूजर UI: `/app` — हिन्दी, English और Hinglish; Applicant/PIO role entry।
-- Admin UI: `/admin` — केंद्रीय नियंत्रण कक्ष का प्रारंभिक dashboard।
-- Static assets इसी FastAPI सेवा से `/assets/` पर serve होते हैं; अलग frontend repository नहीं बनाई गई।
-- अभी UI प्रारंभिक है: प्रश्न विश्लेषण API, फाइल अपलोड, login/session, role permissions, सदस्यता और admin operations सक्रिय नहीं हैं।
-- Admin UI को वास्तविक authentication और authorization बनने तक सार्वजनिक production में उपयोग नहीं करना है।
+## परीक्षण
+\`\`\`bash
+ruff check app tests
+pytest
+\`\`\`
 
-## वर्तमान सीमा
+## शोध और ड्राफ्ट सुविधाएँ
+- Research API केवल \`rti.legal_documents.status = 'verified'\` वाले दस्तावेज़ों को लौटाती है; pending/review_required crawler output कभी कानूनी प्रमाण के रूप में नहीं दिखता। अभी खोज exact phrase substring आधारित है, semantic/vector search नहीं।
+- Analysis checklist Applicant और PIO के लिए अलग जाँच-बिंदु देती है, पर यह AI inference या अंतिम कानूनी राय नहीं है।
+- RTI draft API हिन्दी/English मसौदा बनाती है। मसौदा database में save या किसी सरकारी portal पर submit नहीं होता। उपयोगकर्ता को लागू केंद्र/राज्य नियम, शुल्क और सही प्राधिकरण जाँचना होगा।
 
-Backend में अभी health endpoint, PostgreSQL connectivity check, कानूनी केस validation model/API, source-domain review helper और भूमिका-आधारित analysis instruction builder हैं। वास्तविक persistent legal-data schema, authentication, crawler, PDF/OCR, legal-content verification, AI model training/inference runtime और production admin APIs अभी बने नहीं हैं। सरकारी domain पहचानना किसी पृष्ठ या निर्णय की सामग्री को सत्यापित करने के बराबर नहीं है।
+## अभी शेष प्रमुख कार्य
+पूर्ण authentication/session/role system, audited legal verification/review UI, OCR for scanned PDFs, richer court/tribunal discovery adapters, semantic/vector search, in-house AI inference and citation-grounded judgment analysis, consent/privacy workflow, immutable audit log, backups/restore drills, monitoring/alerts, and production load/security testing.

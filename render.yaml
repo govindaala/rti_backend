@@ -1,0 +1,31 @@
+# रिपॉजिटरी पथ: rti_backend/render.yaml
+# यह Blueprint केवल अलग background worker बनाता है; मौजूदा web service को modify नहीं करता।
+services:
+  - type: worker
+    name: rti-legal-crawler
+    runtime: python
+    repo: https://github.com/govindaala/rti_backend
+    branch: main
+    region: singapore
+    plan: starter
+    buildCommand: pip install .
+    startCommand: python -m app.worker --poll
+    autoDeployTrigger: checksPass
+    maxShutdownDelaySeconds: 300
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: CRAWLER_TIMEOUT_SECONDS
+        value: "20"
+      - key: CRAWLER_MAX_BYTES
+        value: "12000000"
+      - key: CRAWLER_POLL_SECONDS
+        value: "2"
+      - key: CRAWLER_IDLE_SECONDS
+        value: "10"
+      - key: CRAWLER_LINKS_PER_PAGE
+        value: "25"
+      - key: CRAWLER_MAX_PAGES_PER_SOURCE
+        value: "250"
+      - key: CRAWLER_RECRAWL_HOURS
+        value: "24"

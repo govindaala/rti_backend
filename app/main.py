@@ -7,6 +7,10 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.api.routes.admin import router as admin_router
+from app.api.routes.analysis import router as analysis_router
+from app.api.routes.drafts import router as drafts_router
+from app.api.routes.research import router as research_router
 from app.api.routes.database import router as database_router
 from app.api.routes.health import router as health_router
 from app.api.routes.legal_cases import router as legal_cases_router
@@ -14,19 +18,21 @@ from app.core.config import settings
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.1.0",
+    version="0.2.0",
     description=(
-        "RTI कानूनी शोध और विश्लेषण के लिए बैकएंड API। "
+        "RTI कानूनी शोध और विश्लेषण के लिए प्रमाण-आधारित बैकएंड। "
         "यह सेवा स्वयं RTI आवेदन या अपील दाखिल नहीं करती।"
     ),
 )
 
-# सभी संस्करणित API endpoints को एक साझा prefix के अंतर्गत रखें।
 app.include_router(health_router, prefix=settings.api_v1_prefix)
 app.include_router(database_router, prefix=settings.api_v1_prefix)
 app.include_router(legal_cases_router, prefix=settings.api_v1_prefix)
+app.include_router(admin_router, prefix=settings.api_v1_prefix)
+app.include_router(research_router, prefix=settings.api_v1_prefix)
+app.include_router(drafts_router, prefix=settings.api_v1_prefix)
+app.include_router(analysis_router, prefix=settings.api_v1_prefix)
 
-# वेब UI को इसी रिपॉजिटरी से serve करें; कोई अलग frontend service आवश्यक नहीं।
 WEB_DIRECTORY = Path(__file__).resolve().parent.parent / "web"
 app.mount("/assets", StaticFiles(directory=WEB_DIRECTORY), name="assets")
 
@@ -39,16 +45,17 @@ def user_interface() -> FileResponse:
 
 @app.get("/admin", include_in_schema=False)
 def admin_interface() -> FileResponse:
-    """केंद्रीय Admin Panel का प्रारंभिक UI लौटाएँ."""
+    """बिना login का read-only operations dashboard लौटाएँ."""
     return FileResponse(WEB_DIRECTORY / "admin.html")
 
 
 @app.get("/", tags=["मूल"], summary="API परिचय")
 def root() -> dict[str, str]:
-    """API का संक्षिप्त परिचय और health endpoint का रास्ता दें."""
+    """API के मुख्य endpoints बताएँ."""
     return {
         "message": "RTI Intelligence Platform Backend",
         "health_endpoint": f"{settings.api_v1_prefix}/health",
         "database_health_endpoint": f"{settings.api_v1_prefix}/health/database",
+        "admin_dashboard_endpoint": f"{settings.api_v1_prefix}/admin/dashboard",
         "docs_endpoint": "/docs",
     }

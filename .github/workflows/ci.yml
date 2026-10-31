@@ -3,9 +3,9 @@ name: Backend CI
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "feature/legal-source-crawler-foundation", "feature/legal-research-and-drafting-core", "feature/continuous-crawler-live-admin"]
   pull_request:
-    branches: ["main"]
+    branches: ["main", "feature/supabase-postgres-integration", "feature/legal-source-crawler-foundation", "feature/legal-research-and-drafting-core"]
 
 permissions:
   contents: read
@@ -15,25 +15,16 @@ jobs:
     name: Python परीक्षण और lint
     runs-on: ubuntu-latest
     steps:
-      # रिपॉजिटरी का कोड प्राप्त करें।
       - name: कोड checkout करें
         uses: actions/checkout@v4
-
-      # समर्थित Python संस्करण स्थापित करें।
       - name: Python स्थापित करें
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
-
-      # प्रोजेक्ट और परीक्षण निर्भरताएँ स्थापित करें।
       - name: Dependencies स्थापित करें
         run: python -m pip install -e ".[dev]"
-
-      # Python शैली और सामान्य त्रुटियों की जाँच करें।
       - name: Ruff lint चलाएँ
         run: ruff check app tests
-
-      # हर push और pull request पर परीक्षण चलाएँ।
       - name: परीक्षण चलाएँ
         run: pytest
