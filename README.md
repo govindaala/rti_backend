@@ -26,6 +26,7 @@ uvicorn app.main:app --reload
 - `POST /api/v1/research/search` — केवल `verified` कानूनी दस्तावेज़ों में खोज
 - `POST /api/v1/analysis/checklist` — Applicant/PIO के लिए नियम-आधारित प्रारंभिक checklist
 - `POST /api/v1/drafts/rti` — हिन्दी/English RTI आवेदन मसौदा; कोई auto-submit नहीं
+- `POST /api/v1/drafts/first-appeal` — धारा 19(1) के अंतर्गत प्रथम अपील मसौदा; कोई auto-submit नहीं
 - `GET /app` — user interface
 - `GET /admin` — password-free read-only dashboard
 - `GET /docs` — API schema
