@@ -18,6 +18,11 @@ LOGGER = logging.getLogger("rti.worker")
 STOP = Event()
 
 
+def _retry_delay_seconds(attempts: int) -> int:
+    """बार-बार विफल स्रोतों पर exponential backoff लागू करें."""
+    return min(30 * (2 ** max(attempts - 1, 0)), 1800)
+
+
 def _is_retryable_error(error: Exception) -> bool:
     """केवल transient network/HTTP failures को सीमित retry दें."""
     if isinstance(error, httpx.TransportError):
@@ -316,7 +321,7 @@ def process_one() -> bool:
                         finished_at=NULL, heartbeat_at=now(), updated_at=now()
                     WHERE id=%s
                     """,
-                    (min(30 * (2 ** max(attempts - 1, 0)), 1800), job_id),
+                    (_retry_delay_seconds(attempts), job_id),
                 )
                 cursor.execute(
                     """
