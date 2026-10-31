@@ -36,13 +36,24 @@ class _LinkParser(HTMLParser):
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
-        self.links: list[str] = []
+        self.links: list[tuple[str, str]] = []
+        self._active_href: str | None = None
+        self._active_text: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag.lower() == "a":
-            href = dict(attrs).get("href")
-            if href:
-                self.links.append(href)
+            self._active_href = dict(attrs).get("href")
+            self._active_text = []
+
+    def handle_data(self, data: str) -> None:
+        if self._active_href:
+            self._active_text.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() == "a" and self._active_href:
+            self.links.append((self._active_href, " ".join(self._active_text)))
+            self._active_href = None
+            self._active_text = []
 
 
 def discover_legal_links(html: str, base_url: str, limit: int = 25) -> list[str]:
@@ -52,16 +63,17 @@ def discover_legal_links(html: str, base_url: str, limit: int = 25) -> list[str]
     base = urlsplit(base_url)
     seen: set[str] = set()
     results: list[str] = []
-    for href in parser.links:
+    for href, anchor_text in parser.links:
         candidate = urljoin(base_url, href).split("#", 1)[0]
         parsed = urlsplit(candidate)
         if parsed.scheme != "https" or parsed.hostname != base.hostname:
             continue
         if not is_official_source_url(candidate):
             continue
-        path = parsed.path.lower()
+        path = f"{parsed.path} {parsed.query}".lower()
+        searchable = f"{path} {anchor_text}".lower()
         is_pdf = path.endswith(".pdf")
-        is_legal_page = any(hint in path for hint in LEGAL_PATH_HINTS)
+        is_legal_page = any(hint in searchable for hint in LEGAL_PATH_HINTS)
         if not (is_pdf or is_legal_page):
             continue
         normalized = candidate.rstrip("/")
@@ -76,7 +88,7 @@ def discover_legal_links(html: str, base_url: str, limit: int = 25) -> list[str]
 
 def classify_document_type(url: str, title: str, text: str = "") -> str:
     """URL/title hints से document type का preliminary label दें."""
-    sample = f"{url} {title}".lower()
+    sample = f"{url} {title} {text[:1000]}".lower()
     if "judgment" in sample or "judgement" in sample or "निर्णय" in sample:
         return "judgment"
     if "order" in sample or "आदेश" in sample:
