@@ -22,6 +22,57 @@ def _stop_worker(signum: int, frame: object) -> None:
     STOP.set()
 
 
+def enqueue_due_source() -> bool:
+    """हर configured interval के बाद completed source को दोबारा crawl queue करें."""
+    with get_connection() as connection, connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT s.id, s.submitted_url
+            FROM rti.research_sources s
+            WHERE s.status = 'completed'
+              AND s.updated_at <= now() - make_interval(hours => %s)
+              AND NOT EXISTS (
+                SELECT 1 FROM rti.crawl_jobs j
+                WHERE j.source_id=s.id AND j.status IN ('queued','running')
+              )
+            ORDER BY s.updated_at ASC
+            FOR UPDATE OF s SKIP LOCKED
+            LIMIT 1
+            """,
+            (settings.crawler_recrawl_hours,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return False
+        source_id, source_url = row
+        cursor.execute(
+            """
+            UPDATE rti.research_sources
+            SET status='queued', updated_at=now(), last_error_code=NULL
+            WHERE id=%s
+            """,
+            (source_id,),
+        )
+        cursor.execute(
+            """
+            INSERT INTO rti.crawl_jobs (source_id, status, current_url)
+            VALUES (%s, 'queued', %s)
+            RETURNING id
+            """,
+            (source_id, source_url),
+        )
+        job_id = cursor.fetchone()[0]
+        cursor.execute(
+            """
+            INSERT INTO rti.crawl_job_events(job_id,event_type,message)
+            VALUES(%s,'scheduled','Periodic source re-crawl scheduled')
+            """,
+            (job_id,),
+        )
+    LOGGER.info("Scheduled periodic re-crawl source=%s job=%s", source_id, job_id)
+    return True
+
+
 def process_one() -> bool:
     """एक job atomically claim करके fetch, extract और child links queue करें."""
     with get_connection() as connection, connection.cursor() as cursor:
@@ -51,7 +102,7 @@ def process_one() -> bool:
             (url, job_id),
         )
         cursor.execute(
-            "UPDATE rti.research_sources SET status='discovering', updated_at=now() WHERE id=%s",
+            "UPDATE rti.research_sources SET status='discovering' WHERE id=%s",
             (source_id,),
         )
         cursor.execute(
@@ -100,9 +151,13 @@ def process_one() -> bool:
             cursor.execute(
                 """
                 SELECT count(*) FROM rti.crawl_jobs
-                WHERE source_id=%s AND status IN ('queued','running','completed')
+                WHERE source_id=%s
+                  AND created_at >= (
+                    SELECT updated_at FROM rti.research_sources WHERE id=%s
+                  )
+                  AND status IN ('queued','running','completed')
                 """,
-                (source_id,),
+                (source_id, source_id),
             )
             existing_jobs = cursor.fetchone()[0]
             remaining_budget = max(0, settings.crawler_max_pages_per_source - existing_jobs)
@@ -115,10 +170,13 @@ def process_one() -> bool:
                     WHERE NOT EXISTS (
                         SELECT 1 FROM rti.crawl_jobs
                         WHERE source_id=%s AND current_url=%s
+                          AND created_at >= (
+                            SELECT updated_at FROM rti.research_sources WHERE id=%s
+                          )
                           AND status IN ('queued','running','completed')
                     )
                     """,
-                    (source_id, child_url, source_id, child_url),
+                    (source_id, child_url, source_id, child_url, source_id),
                 )
                 queued_links += cursor.rowcount
 
@@ -149,10 +207,15 @@ def process_one() -> bool:
             cursor.execute(
                 """
                 UPDATE rti.research_sources
-                SET status=%s, updated_at=now()
+                SET status=%s,
+                    updated_at=CASE WHEN %s='completed' THEN now() ELSE updated_at END
                 WHERE id=%s
                 """,
-                ("discovering" if pending else "completed", source_id),
+                (
+                    "discovering" if pending else "completed",
+                    "discovering" if pending else "completed",
+                    source_id,
+                ),
             )
         LOGGER.info(
             "Completed job=%s source=%s child_links=%s",
@@ -203,6 +266,8 @@ def run_worker(poll_seconds: int, idle_seconds: int) -> None:
     while not STOP.is_set():
         try:
             processed = process_one()
+            if not processed and enqueue_due_source():
+                processed = process_one()
             if processed:
                 STOP.wait(poll_seconds)
             else:
