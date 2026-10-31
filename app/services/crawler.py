@@ -17,12 +17,10 @@ USER_AGENT = "RTI-ResearchBot/0.1 (+respectful public legal research)"
 
 def extract_html_text(html: str) -> str:
     """HTML से script/style हटाकर whitespace-normalized plain text निकालें."""
-    without_active_content = re.sub(
-        r"(?is)<(script|style|noscript)\b[^>]*>.*?</\1\s*>",
-        " ",
-        html,
-    )
-    without_tags = re.sub(r"(?s)<[^>]+>", " ", without_active_content)
+    cleaned = re.sub(r"(?is)<script[^>]*>.*?</script\s*>", " ", html)
+    cleaned = re.sub(r"(?is)<style[^>]*>.*?</style\s*>", " ", cleaned)
+    cleaned = re.sub(r"(?is)<noscript[^>]*>.*?</noscript\s*>", " ", cleaned)
+    without_tags = re.sub(r"(?s)<[^>]+>", " ", cleaned)
     return unescape(re.sub(r"\s+", " ", without_tags)).strip()
 
 
