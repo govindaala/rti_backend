@@ -1,7 +1,7 @@
 // रिपॉजिटरी पथ: rti_backend/web/app.js
 "use strict";
 
-// UI में कोई बाहरी AI API नहीं है; विश्लेषण सुविधा backend बनने तक बंद रहेगी।
+// बाहरी AI-provider API नहीं; applicant workspace नियम-आधारित checklist API उपयोग करता है।
 const translations = {
   hi: {
     how:"कैसे काम करता है",language:"भाषा",eyebrow:"सूचना का अधिकार • कानून आधारित सहायता",
