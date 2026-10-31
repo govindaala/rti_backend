@@ -1,18 +1,25 @@
 # रिपॉजिटरी पथ: rti_backend/app/services/crawler.py
-"""सीमित और allowlist-आधारित सरकारी स्रोत fetch तथा text extraction."""
+"""सरकारी स्रोतों से सीमित, robots-aware दस्तावेज़ discovery और extraction."""
 
 import hashlib
 import io
 import re
 from html import unescape
-from urllib.parse import urlsplit
+from html.parser import HTMLParser
+from urllib.parse import urljoin, urlsplit
+from urllib.robotparser import RobotFileParser
 
 import httpx
 from pypdf import PdfReader
 
 from app.services.source_registry import is_official_source_url
 
-USER_AGENT = "RTI-ResearchBot/0.1 (+respectful public legal research)"
+USER_AGENT = "RTI-ResearchBot/0.2 (+respectful public legal research)"
+LEGAL_PATH_HINTS = (
+    "judgment", "judgements", "judgements", "judgement", "order", "orders",
+    "decision", "case", "court", "circular", "notification", "gazette",
+    "act", "rules", "regulation", "tribunal", "commission", "cause-list",
+)
 
 
 def extract_html_text(html: str) -> str:
@@ -22,6 +29,49 @@ def extract_html_text(html: str) -> str:
     cleaned = re.sub(r"(?is)<noscript[^>]*>.*?</noscript\s*>", " ", cleaned)
     without_tags = re.sub(r"(?s)<[^>]+>", " ", cleaned)
     return unescape(re.sub(r"\s+", " ", without_tags)).strip()
+
+
+class _LinkParser(HTMLParser):
+    """HTML anchor href collect करें; script text को link नहीं मानें."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.links: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() == "a":
+            href = dict(attrs).get("href")
+            if href:
+                self.links.append(href)
+
+
+def discover_legal_links(html: str, base_url: str, limit: int = 25) -> list[str]:
+    """उसी official host के PDF और स्पष्ट legal-path links लौटाएँ."""
+    parser = _LinkParser()
+    parser.feed(html)
+    base = urlsplit(base_url)
+    seen: set[str] = set()
+    results: list[str] = []
+    for href in parser.links:
+        candidate = urljoin(base_url, href).split("#", 1)[0]
+        parsed = urlsplit(candidate)
+        if parsed.scheme != "https" or parsed.hostname != base.hostname:
+            continue
+        if not is_official_source_url(candidate):
+            continue
+        path = parsed.path.lower()
+        is_pdf = path.endswith(".pdf")
+        is_legal_page = any(hint in path for hint in LEGAL_PATH_HINTS)
+        if not (is_pdf or is_legal_page):
+            continue
+        normalized = candidate.rstrip("/")
+        if normalized == base_url.rstrip("/") or normalized in seen:
+            continue
+        seen.add(normalized)
+        results.append(normalized)
+        if len(results) >= limit:
+            break
+    return results
 
 
 def _safe_url(url: str) -> str:
@@ -34,13 +84,39 @@ def _safe_url(url: str) -> str:
     return url
 
 
+def _robots_allows(url: str, timeout_seconds: int) -> bool:
+    """robots.txt का पालन करें; policy fetch विफल हो तो सुरक्षित रूप से रुकें."""
+    parsed = urlsplit(url)
+    robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
+    try:
+        response = httpx.get(
+            robots_url,
+            timeout=min(timeout_seconds, 8),
+            follow_redirects=False,
+            headers={"User-Agent": USER_AGENT},
+        )
+        if response.status_code in (404, 410):
+            return True
+        if response.status_code != 200:
+            return False
+        parser = RobotFileParser()
+        parser.set_url(robots_url)
+        parser.parse(response.text.splitlines())
+        return parser.can_fetch(USER_AGENT, url)
+    except httpx.HTTPError:
+        return False
+
+
 def fetch_document(
     url: str,
     timeout_seconds: int = 20,
     max_bytes: int = 12_000_000,
 ) -> dict:
-    """Redirect follow किए बिना सीमित bytes fetch करें; redirect को अलग review चाहिए."""
+    """Robots policy के बाद redirect रहित सीमित fetch और SHA-256 extraction."""
     safe_url = _safe_url(url)
+    if not _robots_allows(safe_url, timeout_seconds):
+        raise PermissionError("Robots policy disallows crawling or could not be verified")
+
     with (
         httpx.Client(
             timeout=timeout_seconds,
@@ -67,8 +143,12 @@ def fetch_document(
         text = "\n".join(page.extract_text() or "" for page in reader.pages)
         pages = len(reader.pages)
         kind = "pdf"
+        title = (reader.metadata.title if reader.metadata else None) or safe_url.rsplit("/", 1)[-1]
     else:
-        text = extract_html_text(raw.decode("utf-8", errors="replace"))
+        decoded = raw.decode("utf-8", errors="replace")
+        title_match = re.search(r"(?is)<title[^>]*>(.*?)</title\s*>", decoded)
+        title = extract_html_text(title_match.group(1)) if title_match else safe_url
+        text = extract_html_text(decoded)
         pages = None
         kind = "html"
 
@@ -76,7 +156,9 @@ def fetch_document(
         "final_url": safe_url,
         "content_type": content_type,
         "document_type": kind,
+        "title": title[:500],
         "text": text[:2_000_000],
+        "html": raw.decode("utf-8", errors="replace") if kind == "html" else None,
         "page_count": pages,
         "content_sha256": hashlib.sha256(raw).hexdigest(),
     }
