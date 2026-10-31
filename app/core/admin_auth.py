@@ -33,7 +33,8 @@ def create_session() -> tuple[str, str]:
         )
     csrf = secrets.token_urlsafe(32)
     payload = json.dumps(
-        {"sub": settings.admin_id, "exp": int(time.time()) + SESSION_TTL_SECONDS, "csrf": csrf,\n         "auth": hmac.new(secret.encode("utf-8"), (settings.admin_pass or "").encode("utf-8"), hashlib.sha256).hexdigest()},
+        {"sub": settings.admin_id, "exp": int(time.time()) + SESSION_TTL_SECONDS, "csrf": csrf,
+         "auth": hmac.new(secret.encode("utf-8"), (settings.admin_pass or "").encode("utf-8"), hashlib.sha256).hexdigest()},
         separators=(",", ":"),
     ).encode("utf-8")
     body = _b64encode(payload)
@@ -55,7 +56,15 @@ def read_session(request: Request) -> dict[str, str]:
         if (
             payload.get("sub") != settings.admin_id
             or int(payload.get("exp", 0)) <= int(time.time())
-            or not isinstance(payload.get("csrf"), str)\n            or not hmac.compare_digest(\n                str(payload.get("auth", "")),\n                hmac.new(\n                    (secret or "").encode("utf-8"),\n                    (settings.admin_pass or "").encode("utf-8"),\n                    hashlib.sha256,\n                ).hexdigest(),\n            )
+            or not isinstance(payload.get("csrf"), str)
+            or not hmac.compare_digest(
+                str(payload.get("auth", "")),
+                hmac.new(
+                    (secret or "").encode("utf-8"),
+                    (settings.admin_pass or "").encode("utf-8"),
+                    hashlib.sha256,
+                ).hexdigest(),
+            )
         ):
             raise ValueError("expired or invalid session")
         return payload
