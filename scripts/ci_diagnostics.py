@@ -6,7 +6,6 @@ the first useful source location from each failed test's traceback.
 from __future__ import annotations
 
 import html
-import os
 import re
 import sys
 import xml.etree.ElementTree as ET
