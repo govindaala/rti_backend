@@ -6,6 +6,7 @@ const refreshButton = document.getElementById("refresh-dashboard");
 const sourceForm = document.getElementById("source-form");
 const sourceStatus = document.getElementById("source-status");
 const submitButton = document.getElementById("submit-source");
+let activeAdminToken = "";
 
 function addCell(row, value, href) {
   const cell = document.createElement("td");
@@ -49,6 +50,74 @@ function renderRows(targetId, rows, columns, emptyText) {
     for (const column of columns) {
       addCell(row, item[column.key], column.link ? item[column.link] : null);
     }
+    target.append(row);
+  }
+}
+
+function renderDocumentRows(rows) {
+  const target = document.getElementById("recent-documents");
+  target.replaceChildren();
+  if (!rows || rows.length === 0) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 5;
+    cell.textContent = "अभी कोई दस्तावेज़ सुरक्षित नहीं हुआ है।";
+    row.append(cell);
+    target.append(row);
+    return;
+  }
+  for (const item of rows) {
+    const row = document.createElement("tr");
+    addCell(row, item.title, item.url);
+    addCell(row, item.type);
+    addCell(row, item.status);
+    addCell(row, item.created_at);
+    const actionCell = document.createElement("td");
+    if (item.status === "review_required") {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "secondary";
+      button.textContent = "समीक्षा के बाद Verify";
+      button.disabled = !activeAdminToken;
+      button.addEventListener("click", async () => {
+        const confirmed = window.confirm(
+          "क्या आपने मूल सरकारी स्रोत, निर्णय की तारीख, पूरा पाठ और बाद के/overruling निर्णय जाँच लिए हैं? केवल वास्तविक मानव समीक्षा के बाद आगे बढ़ें।"
+        );
+        if (!confirmed) return;
+        const note = window.prompt("समीक्षा टिप्पणी लिखें (कम से कम 20 अक्षर):");
+        if (!note || note.trim().length < 20) {
+          sourceStatus.textContent = "समीक्षा टिप्पणी कम से कम 20 अक्षरों की होनी चाहिए।";
+          return;
+        }
+        button.disabled = true;
+        try {
+          const response = await fetch(
+            "/api/v1/admin/documents/" + encodeURIComponent(item.id) + "/verify",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Admin-Token": activeAdminToken,
+                Accept: "application/json"
+              },
+              body: JSON.stringify({ review_note: note.trim(), confirm_reviewed: true }),
+              credentials: "same-origin"
+            }
+          );
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.detail || "HTTP " + response.status);
+          sourceStatus.textContent = "मानव समीक्षा दर्ज: " + result.document_id;
+          await loadDashboard();
+        } catch (error) {
+          sourceStatus.textContent = "दस्तावेज़ verify नहीं हुआ: " + error.message;
+          button.disabled = false;
+        }
+      });
+      actionCell.append(button);
+    } else {
+      actionCell.textContent = "—";
+    }
+    row.append(actionCell);
     target.append(row);
   }
 }
@@ -98,6 +167,7 @@ sourceForm.addEventListener("submit", async (event) => {
   submitButton.disabled = true;
   sourceStatus.textContent = "स्रोत की अनुमति और queue की जाँच हो रही है...";
   const token = document.getElementById("admin-token").value;
+  activeAdminToken = token;
   const payload = {
     url: document.getElementById("source-url").value.trim(),
     label: document.getElementById("source-label").value.trim() || null
@@ -120,13 +190,17 @@ sourceForm.addEventListener("submit", async (event) => {
       : "यह स्रोत पहले से queue/running में है। Job ID: " + result.job_id;
     document.getElementById("source-url").value = "";
     document.getElementById("source-label").value = "";
-    document.getElementById("admin-token").value = "";
+
     await loadDashboard();
   } catch (error) {
     sourceStatus.textContent = "स्रोत नहीं जुड़ा: " + error.message;
   } finally {
     submitButton.disabled = false;
   }
+});
+
+document.getElementById("admin-token").addEventListener("input", (event) => {
+  activeAdminToken = event.target.value;
 });
 
 refreshButton.addEventListener("click", loadDashboard);
