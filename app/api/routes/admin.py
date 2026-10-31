@@ -4,6 +4,7 @@
 import hmac
 from urllib.parse import urlsplit
 
+import psycopg
 from fastapi import APIRouter, Header, HTTPException, status
 from pydantic import BaseModel, Field, HttpUrl
 
@@ -50,7 +51,7 @@ def dashboard_summary() -> dict:
             "jobs": jobs,
             "documents": documents,
         }
-    except Exception:
+    except (psycopg.Error, RuntimeError):
         return {"database": "unavailable", "sources": {}, "jobs": {}, "documents": {}}
 
 
@@ -98,8 +99,14 @@ def submit_source(
                 """,
                 (job_id,),
             )
-        return {"accepted": True, "source_id": str(source_id), "job_id": str(job_id),
-                "source_status": source_status}
-    except Exception as exc:
-        # Database exception details may contain internal infrastructure data.
-        raise HTTPException(status_code=503, detail="Source queue is temporarily unavailable") from exc
+        return {
+            "accepted": True,
+            "source_id": str(source_id),
+            "job_id": str(job_id),
+            "source_status": source_status,
+        }
+    except psycopg.Error as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Source queue is temporarily unavailable",
+        ) from exc

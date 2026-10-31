@@ -3,7 +3,7 @@
 
 import hashlib
 import re
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urlsplit
 
 import httpx
 from pypdf import PdfReader
@@ -26,23 +26,25 @@ def _safe_url(url: str) -> str:
 def fetch_document(url: str, timeout_seconds: int = 20, max_bytes: int = 12_000_000) -> dict:
     """Redirect follow किए बिना सीमित bytes fetch करें; redirect को अलग review चाहिए."""
     safe_url = _safe_url(url)
-    with httpx.Client(
-        timeout=timeout_seconds,
-        follow_redirects=False,
-        headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/pdf"},
-    ) as client:
-        with client.stream("GET", safe_url) as response:
-            if response.status_code in (301, 302, 303, 307, 308):
-                raise ValueError("Redirect requires manual source review")
-            response.raise_for_status()
-            content_type = response.headers.get("content-type", "").split(";")[0].lower()
-            if content_type not in ("application/pdf", "text/html", "application/xhtml+xml"):
-                raise ValueError("Unsupported content type")
-            body = bytearray()
-            for chunk in response.iter_bytes():
-                body.extend(chunk)
-                if len(body) > max_bytes:
-                    raise ValueError("Document exceeds configured size limit")
+    with (
+        httpx.Client(
+            timeout=timeout_seconds,
+            follow_redirects=False,
+            headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/pdf"},
+        ) as client,
+        client.stream("GET", safe_url) as response,
+    ):
+        if response.status_code in (301, 302, 303, 307, 308):
+            raise ValueError("Redirect requires manual source review")
+        response.raise_for_status()
+        content_type = response.headers.get("content-type", "").split(";")[0].lower()
+        if content_type not in ("application/pdf", "text/html", "application/xhtml+xml"):
+            raise ValueError("Unsupported content type")
+        body = bytearray()
+        for chunk in response.iter_bytes():
+            body.extend(chunk)
+            if len(body) > max_bytes:
+                raise ValueError("Document exceeds configured size limit")
     raw = bytes(body)
     if content_type == "application/pdf":
         import io
@@ -55,9 +57,9 @@ def fetch_document(url: str, timeout_seconds: int = 20, max_bytes: int = 12_000_
         from html import unescape
 
         decoded = raw.decode("utf-8", errors="replace")
-        decoded = re.sub(r"(?is)<(script|style|noscript).*?>.*?</\1>", " ", decoded)
+        decoded = re.sub(r"(?is)<(script|style|noscript).*?>.*?</\\1>", " ", decoded)
         decoded = re.sub(r"(?s)<[^>]+>", " ", decoded)
-        text = unescape(re.sub(r"\s+", " ", decoded)).strip()
+        text = unescape(re.sub(r"\\s+", " ", decoded)).strip()
         pages = None
         kind = "html"
     return {

@@ -1,8 +1,9 @@
 # रिपॉजिटरी पथ: rti_backend/app/core/database.py
 """PostgreSQL connections and safe health checks."""
 
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any, Iterator
+from typing import Any
 
 import psycopg
 
