@@ -17,6 +17,10 @@ class Settings:
     admin_api_token: str | None = os.getenv("ADMIN_API_TOKEN")
     crawler_timeout_seconds: int = int(os.getenv("CRAWLER_TIMEOUT_SECONDS", "20"))
     crawler_max_bytes: int = int(os.getenv("CRAWLER_MAX_BYTES", "12000000"))
+    crawler_poll_seconds: int = int(os.getenv("CRAWLER_POLL_SECONDS", "2"))
+    crawler_idle_seconds: int = int(os.getenv("CRAWLER_IDLE_SECONDS", "10"))
+    crawler_links_per_page: int = int(os.getenv("CRAWLER_LINKS_PER_PAGE", "25"))
+    crawler_max_pages_per_source: int = int(os.getenv("CRAWLER_MAX_PAGES_PER_SOURCE", "250"))
 
 
 settings = Settings()
