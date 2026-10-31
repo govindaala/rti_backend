@@ -34,25 +34,25 @@ uvicorn app.main:app --reload
 ## Supabase configuration
 Render/server environment में `DATABASE_URL` सेट करें। इसे GitHub, browser, chat या README में न रखें। पहले साझा किया गया database password अब सुरक्षित नहीं माना जाना चाहिए; इस्तेमाल से पहले Supabase में rotate करें। न्यूनतम अधिकार वाला database role उपयोग करें। `rti` schema private रहे और service credentials browser में न जाएँ।
 
-मौजूदा Supabase project में `rti.research_sources`, `rti.crawl_jobs`, `rti.legal_documents` और crawl event tables मौजूद हैं; worker इन्हीं tables को durable queue और document store की तरह उपयोग करता है। कोई नया migration इस PR में लागू नहीं होता।
+मौजूदा Supabase project में `rti.research_sources`, `rti.crawl_jobs`, `rti.legal_documents` और crawl event tables मौजूद हैं; worker इन्हीं tables को durable queue और document store की तरह उपयोग करता है। Recovery/review fields और queue indexes अब version-controlled Supabase migrations में हैं।
 
 ## Database migrations
 
-Supabase schema changes are version-controlled under \`supabase/migrations/\`.
+Supabase schema changes are version-controlled under `supabase/migrations/`.
 The recovery/review migration was applied to the connected Supabase project on
-2026-10-31 (migration \`20261031100544\`), followed by duplicate-index cleanup
-(\`20261031100603\`). It adds the durable queue availability timestamp, legal
+2026-10-31 (migration `20261031100544`), followed by duplicate-index cleanup
+(`20261031100603`). It adds the durable queue availability timestamp, legal
 review evidence fields, and queue/recovery indexes without deleting existing data.
 
 For another environment, link the Supabase CLI to that project and run:
 
-\`\`\`bash
+```bash
 supabase link --project-ref <project-ref>
 supabase db push
-\`\`\`
+```
 
-The \`rti\` schema is private to the server-side database role. Do not grant
-\`anon\` or \`authenticated\` access to it; the connected project currently
+The `rti` schema is private to the server-side database role. Do not grant
+`anon` or `authenticated` access to it; the connected project currently
 denies those roles schema usage and table access. RLS remains enabled as
 defense in depth.
 
