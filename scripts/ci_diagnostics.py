@@ -65,7 +65,7 @@ def main() -> int:
         test_name = ".".join(
             part for part in (case.get("classname", ""), case.get("name", "")) if part
         )
-        detail = "\\n".join(
+        detail = "\n".join(
             part for part in (problem.get("message", ""), (problem.text or "").strip()) if part
         )
         detail = html.unescape(detail)
