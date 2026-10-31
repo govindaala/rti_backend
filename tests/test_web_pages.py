@@ -16,13 +16,14 @@ def test_user_interface_is_served() -> None:
     assert 'id="language"' in response.text
 
 
-def test_admin_interface_is_public_read_only_dashboard() -> None:
-    """Admin dashboard बिना login दिखे और write access का दावा न करे."""
+def test_admin_interface_shows_live_metrics_and_token_protected_source_form() -> None:
+    """Admin dashboard public metrics दिखाए और source intake के लिए token माँगे."""
     response = client.get("/admin")
     assert response.status_code == 200
-    assert "Operations Dashboard" in response.text
-    assert "READ ONLY" in response.text
-    assert "कोई पासवर्ड आवश्यक नहीं" in response.text
+    assert "कानूनी शोध नियंत्रण कक्ष" in response.text
+    assert 'id="source-form"' in response.text
+    assert 'id="admin-token"' in response.text
+    assert "स्रोत स्वीकृत करें" in response.text
 
 
 def test_frontend_assets_are_served() -> None:
