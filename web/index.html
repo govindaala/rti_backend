@@ -47,7 +47,7 @@
       <form id="analysis-form">
         <input type="hidden" id="selected-role" value="applicant">
         <label for="question" data-i18n="questionLabel">आप किस RTI/कानूनी मुद्दे पर सहायता चाहते हैं?</label>
-        <textarea id="question" rows="5" required minlength="20" data-placeholder="questionPlaceholder" placeholder="अपना प्रश्न, PIO का जवाब या संबंधित कानूनी स्थिति लिखें..."></textarea>
+        <textarea id="question" rows="5" required minlength="20" maxlength="6000" data-placeholder="questionPlaceholder" placeholder="अपना प्रश्न, PIO का जवाब या संबंधित कानूनी स्थिति लिखें..."></textarea>
         <label for="documents" data-i18n="documentsLabel">दस्तावेज़ अपलोड (अभी उपलब्ध नहीं)</label>
         <input id="documents" type="file" accept=".pdf,.txt,.doc,.docx,.jpg,.jpeg,.png" multiple disabled>
         <p class="hint" data-i18n="privacyHint">आपका प्रश्न backend पर भेजकर केवल नियम-आधारित प्रारंभिक जाँच सूची बनाई जाएगी। यह AI कानूनी राय नहीं है।</p>
