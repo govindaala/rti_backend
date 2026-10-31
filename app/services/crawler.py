@@ -85,7 +85,7 @@ def classify_document_type(url: str, title: str, text: str = "") -> str:
         return "circular"
     if "notification" in sample or "gazette" in sample or "अधिसूचना" in sample:
         return "notification"
-    if re.search(r"\\b(act|rules|regulation)\\b", sample):
+    if any(term in sample for term in (" act ", "/act", " rules ", "/rules", "regulation")):
         return "other"
     return "unknown"
 
