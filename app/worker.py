@@ -160,6 +160,7 @@ def process_one() -> bool:
                 ),
             )
 
+            cursor.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (str(source_id),))
             cursor.execute(
                 """
                 SELECT count(*) FROM rti.crawl_jobs
