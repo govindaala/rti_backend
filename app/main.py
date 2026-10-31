@@ -4,6 +4,7 @@
 from fastapi import FastAPI
 
 from app.api.routes.health import router as health_router
+from app.api.routes.legal_cases import router as legal_cases_router
 from app.core.config import settings
 
 app = FastAPI(
@@ -17,6 +18,7 @@ app = FastAPI(
 
 # सभी संस्करणित API endpoints को एक साझा prefix के अंतर्गत रखें।
 app.include_router(health_router, prefix=settings.api_v1_prefix)
+app.include_router(legal_cases_router, prefix=settings.api_v1_prefix)
 
 
 @app.get("/", tags=["मूल"], summary="API परिचय")
