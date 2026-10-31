@@ -16,10 +16,11 @@ def test_root_endpoint_returns_api_information() -> None:
     assert response.json()["message"] == "RTI Intelligence Platform Backend"
 
 
-def test_health_endpoint_returns_ok() -> None:
-    """हेल्थ endpoint सेवा की स्थिति ok बताए."""
+def test_health_endpoint_returns_ok_without_environment_leak() -> None:
+    """हेल्थ endpoint उपलब्धता बताए, deployment environment उजागर न करे."""
     response = client.get("/api/v1/health")
 
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
     assert "service" in response.json()
+    assert "environment" not in response.json()
