@@ -35,3 +35,27 @@ class RTIDraftRequest(BaseModel):
             raise ValueError("हर सूचना-बिंदु 5 से 1200 अक्षरों के बीच होना चाहिए")
         self.information_requested = cleaned
         return self
+
+class FirstAppealDraftRequest(BaseModel):
+    """धारा 19(1) की प्रथम अपील का मसौदा."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    language: DraftLanguage = DraftLanguage.HINDI
+    public_authority: str = Field(min_length=2, max_length=180)
+    first_appellate_authority: str = Field(min_length=2, max_length=180)
+    applicant_name: str = Field(min_length=2, max_length=120)
+    postal_address: str = Field(min_length=5, max_length=1000)
+    rti_application_date: str = Field(min_length=4, max_length=40)
+    pio_reply_date: str | None = Field(default=None, max_length=40)
+    grounds: list[str] = Field(min_length=1, max_length=12)
+    relief_sought: str = Field(min_length=5, max_length=1200)
+
+    @model_validator(mode="after")
+    def validate_grounds(self) -> "FirstAppealDraftRequest":
+        """अपील के आधार खाली न हों."""
+        cleaned = [item.strip() for item in self.grounds]
+        if any(len(item) < 5 or len(item) > 1200 for item in cleaned):
+            raise ValueError("हर अपील-आधार 5 से 1200 अक्षरों के बीच होना चाहिए")
+        self.grounds = cleaned
+        return self
