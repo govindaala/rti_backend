@@ -1,7 +1,7 @@
 # रिपॉजिटरी पथ: rti_backend/app/services/drafting.py
 """RTI आवेदन का स्पष्ट, user-editable प्रारूप तैयार करें."""
 
-from app.models.drafts import DraftLanguage, RTIDraftRequest
+from app.models.drafts import DraftLanguage, FirstAppealDraftRequest, RTIDraftRequest
 
 
 def build_rti_draft(payload: RTIDraftRequest) -> str:
@@ -60,7 +60,7 @@ def build_rti_draft(payload: RTIDraftRequest) -> str:
     )
 
 
-def build_first_appeal_draft(payload) -> str:
+def build_first_appeal_draft(payload: FirstAppealDraftRequest) -> str:
     """धारा 19(1) की प्रथम अपील का संपादन योग्य मसौदा बनाएँ."""
     grounds = "\\n".join(
         f"{index}. {item}" for index, item in enumerate(payload.grounds, 1)
