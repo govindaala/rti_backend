@@ -28,7 +28,10 @@ jobs:
       - name: Diagnostics folder और run metadata
         id: metadata
         if: always()
+        shell: bash
         run: |
+          set -Eeuo pipefail
+          trap 'rc=$?; echo "::error title=Metadata command failed::UTC=$(date -u --iso-8601=seconds) script-line=${LINENO} exit=${rc} command=${BASH_COMMAND}"; exit "$rc"' ERR
           mkdir -p reports
           {
             echo "CI start/checkpoint UTC: $(date -u --iso-8601=seconds)"
@@ -43,8 +46,10 @@ jobs:
 
       - name: Dependencies स्थापित करें
         id: dependencies
+        shell: bash
         run: |
-          set -o pipefail
+          set -Eeuo pipefail
+          trap 'rc=$?; echo "::error title=Dependencies command failed::UTC=$(date -u --iso-8601=seconds) script-line=${LINENO} exit=${rc} command=${BASH_COMMAND}"; exit "$rc"' ERR
           echo "START UTC: $(date -u --iso-8601=seconds)"
           python -m pip install --upgrade pip 2>&1 | tee reports/pip-upgrade.log
           python -m pip install -e ".[dev]" 2>&1 | tee reports/pip-install.log
@@ -52,16 +57,20 @@ jobs:
 
       - name: Ruff lint चलाएँ
         id: ruff
+        shell: bash
         run: |
-          set -o pipefail
+          set -Eeuo pipefail
+          trap 'rc=$?; echo "::error title=Ruff command failed::UTC=$(date -u --iso-8601=seconds) script-line=${LINENO} exit=${rc} command=${BASH_COMMAND}"; exit "$rc"' ERR
           echo "START UTC: $(date -u --iso-8601=seconds)"
           ruff check app tests --output-format=github 2>&1 | tee reports/ruff.log
           echo "END UTC: $(date -u --iso-8601=seconds)"
 
       - name: Frontend JavaScript syntax जाँचें
         id: javascript
+        shell: bash
         run: |
-          set -o pipefail
+          set -Eeuo pipefail
+          trap 'rc=$?; echo "::error title=JavaScript syntax command failed::UTC=$(date -u --iso-8601=seconds) script-line=${LINENO} exit=${rc} command=${BASH_COMMAND}"; exit "$rc"' ERR
           echo "START UTC: $(date -u --iso-8601=seconds)"
           node --check web/app.js 2>&1 | tee reports/node-app.log
           node --check web/admin.js 2>&1 | tee reports/node-admin.log
@@ -69,14 +78,19 @@ jobs:
 
       - name: परीक्षण चलाएँ — पूरा traceback और JUnit report
         id: pytest
+        shell: bash
         run: |
+          set -Eeuo pipefail
+          trap 'rc=$?; echo "::error title=Pytest diagnostic command failed::UTC=$(date -u --iso-8601=seconds) script-line=${LINENO} exit=${rc} command=${BASH_COMMAND}"; exit "$rc"' ERR
           mkdir -p reports
           echo "START UTC: $(date -u --iso-8601=seconds)"
           set +e
-          set -o pipefail
           pytest -vv --tb=long --showlocals --junitxml=reports/junit.xml 2>&1 | tee reports/pytest.log
           test_status=${PIPESTATUS[0]}
           echo "PYTEST EXIT CODE: $test_status"
+          if [ "$test_status" -ne 0 ]; then
+            echo "::error title=Pytest failed::UTC=$(date -u --iso-8601=seconds) exit=$test_status; inspect FAILED TEST, FAILURE REASON and TRACEBACK SOURCE LOCATIONS below."
+          fi
           echo "END UTC: $(date -u --iso-8601=seconds)"
           python scripts/ci_diagnostics.py reports/junit.xml 2>&1 | tee reports/diagnostics.log
           diagnostic_status=${PIPESTATUS[0]}
