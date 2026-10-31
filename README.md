@@ -1,16 +1,20 @@
+<!-- Repository path: rti_backend/README.md -->
 # RTI Intelligence Platform — Backend
 
 प्रमाण-आधारित RTI कानूनी शोध प्लेटफ़ॉर्म का FastAPI backend.
 
 ## स्थायी सिद्धांत
-- Applicant और PIO analysis एक ही सत्यापित legal corpus से facts और law लेते हैं; केवल विश्लेषण का दृष्टिकोण बदलता है।
-- कोई बाहरी AI-provider/model API नहीं। Supabase केवल PostgreSQL storage है।
-- कोई RTI आवेदन/अपील स्वतः दाखिल नहीं होगी।
-- सरकारी domain होना किसी निर्णय के पाठ या कानूनी स्थिति का प्रमाण नहीं; human verification आवश्यक है।
-- उपयोगकर्ता दस्तावेज़ साझा corpus में जोड़ने से पहले सहमति, पहचान हटाना और समीक्षा आवश्यक है।
+
+- Applicant और PIO विश्लेषण एक ही verified legal corpus और समान कानूनी स्रोतों पर आधारित होंगे; केवल विश्लेषण का दृष्टिकोण अलग होगा।
+- Product runtime में कोई बाहरी AI-provider/model API उपयोग नहीं किया जाता। Supabase PostgreSQL storage है, AI engine नहीं।
+- कोई RTI आवेदन/अपील स्वतः दाखिल नहीं होती।
+- सरकारी domain होना किसी पेज, आदेश या निर्णय की सामग्री अथवा उसकी वर्तमान कानूनी स्थिति का प्रमाण नहीं है।
+- Crawler से प्राप्त नया पाठ `review_required` रहता है। मानव समीक्षा और स्पष्ट कारण दर्ज होने के बाद ही `verified` corpus में जा सकता है।
 
 ## Local run
+
 Python 3.11+
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate
@@ -18,103 +22,91 @@ pip install -e ".[dev]"
 uvicorn app.main:app --reload
 ```
 
-## Live endpoints
-- `GET /api/v1/health`
-- `GET /api/v1/health/database`
-- `POST /api/v1/admin/auth/login` — `ADMIN_ID` / `ADMIN_PASS` से secure admin login
-- `GET /api/v1/admin/auth/me` — current admin session और CSRF token
-- `POST /api/v1/admin/auth/logout` — CSRF-protected logout
-- `GET /api/v1/admin/dashboard` — authenticated live metrics और crawl activity
-- `POST /api/v1/admin/sources` — authenticated + CSRF-protected source queue
-- `POST /api/v1/research/search` — केवल `verified` कानूनी दस्तावेज़ों में खोज
-- `POST /api/v1/analysis/checklist` — Applicant/PIO के लिए नियम-आधारित प्रारंभिक checklist
-- `POST /api/v1/drafts/rti` — हिन्दी/English RTI आवेदन मसौदा; कोई auto-submit नहीं
-- `POST /api/v1/drafts/first-appeal` — धारा 19(1) के अंतर्गत प्रथम अपील मसौदा; कोई auto-submit नहीं
-- `GET /app` — user interface
-- `GET /admin` — secure login screen और authenticated live operations dashboard
-- `GET /docs` — API schema
+## API और UI
 
-## Supabase configuration
-Render/server environment में `DATABASE_URL` सेट करें। इसे GitHub, browser, chat या README में न रखें। पहले साझा किया गया database password अब सुरक्षित नहीं माना जाना चाहिए; इस्तेमाल से पहले Supabase में rotate करें। न्यूनतम अधिकार वाला database role उपयोग करें। `rti` schema private रहे और service credentials browser में न जाएँ।
+- `GET /api/v1/health` — API process health.
+- `GET /api/v1/health/database` — PostgreSQL connection health.
+- `POST /api/v1/admin/auth/login` — `ADMIN_ID` / `ADMIN_PASS` से admin login.
+- `GET /api/v1/admin/auth/me` — वर्तमान session और CSRF token.
+- `POST /api/v1/admin/auth/logout` — CSRF-protected logout.
+- `GET /api/v1/admin/dashboard` — authenticated live source/job/document metrics.
+- `POST /api/v1/admin/sources` — authenticated और CSRF-protected source queue.
+- `POST /api/v1/admin/documents/{document_id}/verify` — reviewer confirmation और कारण सहित document verification.
+- `POST /api/v1/research/search` — केवल `verified` legal documents में खोज.
+- `POST /api/v1/analysis/checklist` — Applicant/PIO के लिए नियम-आधारित प्रारंभिक checklist.
+- `POST /api/v1/drafts/rti` — हिन्दी/English RTI आवेदन मसौदा; कोई auto-submit नहीं.
+- `POST /api/v1/drafts/first-appeal` — प्रथम अपील मसौदा; कोई auto-submit नहीं.
+- `GET /app` — user interface.
+- `GET /admin` — secure login और admin control panel.
+- `GET /docs` — API schema.
 
-मौजूदा Supabase project में `rti.research_sources`, `rti.crawl_jobs`, `rti.legal_documents` और crawl event tables मौजूद हैं; worker इन्हीं tables को durable queue और document store की तरह उपयोग करता है। Recovery/review fields और queue indexes अब version-controlled Supabase migrations में हैं।
+## Render environment variables
 
-## Database migrations
+वेब सर्विस या उससे linked Environment Group में ये server-side variables आवश्यक हैं:
 
-Supabase schema changes are version-controlled under `supabase/migrations/`.
-The recovery/review migration was applied to the connected Supabase project on
-2026-10-31 (migration `20261031100544`), followed by duplicate-index cleanup
-(`20261031100603`). It adds the durable queue availability timestamp, legal
-review evidence fields, and queue/recovery indexes without deleting existing data.
+| Variable | उपयोग |
+|---|---|
+| `ADMIN_ID` | Admin login ID |
+| `ADMIN_PASS` | Admin password |
+| `ADMIN_SESSION_SECRET` | अलग random signing secret; कम से कम 32 bytes |
+| `DATABASE_URL` | Supabase PostgreSQL connection string |
 
-For another environment, link the Supabase CLI to that project and run:
+`ADMIN_SESSION_SECRET` को `ADMIN_PASS` से अलग रखें। किसी भी secret को GitHub, browser code, README, logs या chat में न डालें। Browser को केवल 8 घंटे की signed `HttpOnly`, `Secure`, `SameSite=Strict` session cookie मिलती है। State-changing admin requests में CSRF token आवश्यक है। पासवर्ड या signing secret बदलने पर पुराने sessions अमान्य हो जाते हैं।
 
-```bash
-supabase link --project-ref <project-ref>
-supabase db push
-```
+यह implementation अभी single-admin environment credential authentication है; multi-user accounts, granular role/permission management और enterprise identity provider integration अभी शामिल नहीं हैं।
 
-The `rti` schema is private to the server-side database role. Do not grant
-`anon` or `authenticated` access to it; the connected project currently
-denies those roles schema usage and table access. RLS remains enabled as
-defense in depth.
+## Supabase database
 
-The first historical migration (`20261031061604`) drops a set of legacy `public`
-objects. It is retained to match the already-applied project history; review that
-file before applying the complete migration chain to any other existing project.
+Supabase project के private `rti` schema में मुख्य tables:
 
-## Continuous official-source crawler
-- Admin में allowlisted HTTPS सरकारी/न्यायिक URL डालें और server-side `ADMIN_API_TOKEN` से approve करें।
-- Source और job PostgreSQL में persist होते हैं; browser बंद होने पर भी queue सुरक्षित रहती है।
-- Worker queue से jobs claim करता है, `robots.txt` का पालन करता है, redirects/custom ports/credentials अस्वीकार करता है और केवल उसी host के legal-path/PDF links discover करता है।
-- Per page अधिकतम 25 candidate links और प्रति crawl cycle प्रति source अधिकतम 250 jobs की सीमा है; fetch timeout और byte size सीमित हैं।
-- PDF/HTML text, title, source URL और SHA-256 hash database में सुरक्षित होते हैं। Document type केवल preliminary URL/title classification है।
-- हर नया दस्तावेज़ `review_required` में रहता है। यह स्वतः verified नहीं होता और legal research API में तब तक उपलब्ध नहीं होगा जब तक authorized reviewer उसे verify न करे।
-- Login walls, CAPTCHA, robots disallow, paywalls या technical access controls को bypass नहीं किया जाता। External links और non-allowlisted domains crawl नहीं होते।
+- `rti.research_sources`
+- `rti.crawl_jobs`
+- `rti.legal_documents`
+- `rti.crawl_job_events`
+
+Schema changes `supabase/migrations/` में version-controlled हैं। Connected project में recovery/review migration लागू की गई है। `rti` schema को browser के `anon` या `authenticated` roles के लिए expose न करें; backend के server-side database role से ही access दें। RLS enabled रहना चाहिए।
+
+पहले साझा किया गया database password सुरक्षित नहीं माना जाना चाहिए; उसे Supabase में rotate करके ही नई `DATABASE_URL` बनाएं। Production में least-privilege database role और tested backup/restore प्रक्रिया आवश्यक है।
+
+## Official-source crawler
+
+- Admin panel में allowlisted HTTPS सरकारी/न्यायिक URL जोड़कर queue किया जा सकता है।
+- Source और crawl job PostgreSQL में persist होते हैं।
+- Worker `robots.txt` का पालन करता है; redirects, custom ports, URL credentials और non-allowlisted domains अस्वीकार होते हैं।
+- HTML/PDF text extraction, content hash और सीमित link discovery उपलब्ध है।
+- Scanned/image-only PDFs के लिए OCR अभी उपलब्ध नहीं है।
+- Link discovery अभी सीमित और उसी approved host तक है; यह संपूर्ण web crawler या सभी भारतीय न्यायालयों/आयोगों के लिए पूर्ण adapters नहीं है।
+- हर नया दस्तावेज़ `review_required` में रहता है। Reviewer को मूल स्रोत, पूरा निर्णय, तारीख, cited paragraphs, subsequent/overruling history और लागू कानूनी स्थिति जाँचनी चाहिए।
+- Login walls, CAPTCHA, paywalls या technical access controls bypass नहीं किए जाते।
 
 ### Continuous worker
-Local one-shot:
+
+Local execution:
+
 ```bash
 python -m app.worker --once
-```
-Continuous polling:
-```bash
 python -m app.worker --poll
 ```
-Worker SIGTERM/SIGINT पर नया job लेना रोकता है और चल रहा job पूरा होने के बाद बंद होता है।
 
-### Render deployment requirement
-`render.yaml` में अलग Render Background Worker परिभाषित है। इसे deploy करने पर Render Starter compute plan वाला अलग worker resource बनेगा और recurring paid compute charge लगेगा। मौजूदा account में backend web service Free plan पर है; वह idle होने पर sleep करती है और उसे 24×7 worker नहीं माना जा सकता। Render की service-type documentation के अनुसार always-on queue consumer के लिए Background Worker उपयुक्त है। Worker के लिए `DATABASE_URL` और web service के लिए `DATABASE_URL` तथा `ADMIN_API_TOKEN` configure करें। Secrets केवल Render Environment में रखें।
+`render.yaml` में अलग Render Background Worker परिभाषित है। यह Starter plan पर है और इसका recurring paid compute charge होगा। मौजूदा web service Free plan पर है; idle होने पर sleep करती है और 24×7 worker का विकल्प नहीं है।
 
-**अभी worker deployed नहीं है।** Blueprint को GitHub में merge/push और Render में sync/deploy करने के बाद ही 24×7 execution शुरू होगा। इस PR को merge करना या paid service create करना अपने-आप नहीं किया गया है।
+**Worker अभी deploy नहीं किया गया है।** Queue में source डालना और उसका वास्तव में लगातार crawl होना अलग बातें हैं। 24×7 crawling के लिए Background Worker deploy, उसके साथ समान `DATABASE_URL` configure, और worker logs/queue processing verify करना जरूरी है। Paid worker provision करने से पहले billing/plan की user approval आवश्यक है।
 
-## Admin security
-Dashboard बिना token के केवल public aggregate आँकड़े और public document metadata दिखाता है। Source submission के लिए `ADMIN_API_TOKEN` आवश्यक है। Token केवल request header में भेजा जाता है, browser storage में save नहीं होता। Production में HTTPS और मजबूत random token अनिवार्य हैं।
+## वर्तमान सीमाएँ — production readiness
 
-## परीक्षण
+- Legal research search अभी exact phrase/substring आधारित है; semantic/vector retrieval नहीं।
+- Applicant/PIO analysis अभी नियम-आधारित checklist है, AI judgment analysis या final legal opinion नहीं।
+- कोई in-house AI inference/training runtime अभी शामिल नहीं है।
+- OCR for scanned PDFs और व्यापक court/tribunal/commission adapters बाकी हैं।
+- Multi-user login, granular roles, subscription/payment और user management बाकी हैं।
+- Consent, PII redaction, immutable audit trail, backup/restore drills, monitoring/alerts और production security/load testing बाकी हैं।
+- Database में वास्तविक कानूनी सामग्री तभी उपलब्ध होगी जब approved sources crawl हों और reviewer documents verify करे। Empty corpus पर legal search परिणाम नहीं दे सकता।
+
+## Tests
+
 ```bash
 ruff check app tests
+node --check web/app.js
+node --check web/admin.js
 pytest
 ```
-
-## शोध और ड्राफ्ट सुविधाएँ
-- Research API केवल `rti.legal_documents.status = 'verified'` वाले दस्तावेज़ों को लौटाती है; pending/review_required crawler output कभी कानूनी प्रमाण के रूप में नहीं दिखता। अभी खोज exact phrase substring आधारित है, semantic/vector search नहीं।
-- Analysis checklist Applicant और PIO के लिए अलग जाँच-बिंदु देती है, पर यह AI inference या अंतिम कानूनी राय नहीं है।
-- `/app` में Applicant form अब `/api/v1/analysis/checklist` से जुड़ा है और checklist हिन्दी, English तथा Hinglish में दिखती है। यह नियम-आधारित checklist है, AI judgment analysis नहीं। File upload बंद है; PIO subscription/payment और login अभी सक्रिय नहीं हैं।
-- RTI draft API हिन्दी/English मसौदा बनाती है। मसौदा database में save या किसी सरकारी portal पर submit नहीं होता। उपयोगकर्ता को लागू केंद्र/राज्य नियम, शुल्क और सही प्राधिकरण जाँचना होगा।
-
-## अभी शेष प्रमुख कार्य
-पूर्ण authentication/session/role system, audited legal verification/review UI, OCR for scanned PDFs, richer court/tribunal discovery adapters, semantic/vector search, in-house AI inference and citation-grounded judgment analysis, consent/privacy workflow, immutable audit log, backups/restore drills, monitoring/alerts, and production load/security testing.
-
-
-## Admin login configuration (Render)
-
-Set these server-side variables on the **web service** or on an Environment Group linked to it:
-
-- `ADMIN_ID`: administrator login ID.
-- `ADMIN_PASS`: administrator password (keep secret; never put it in GitHub or chat).
-- `ADMIN_SESSION_SECRET`: independent random signing secret, at least 32 bytes. Generate it in a password manager or secure random generator; do not reuse the admin password.
-
-The browser receives only an 8-hour, signed, `HttpOnly`, `Secure`, `SameSite=Strict` session cookie. State-changing admin APIs also require the session CSRF token. The old `ADMIN_API_TOKEN` header is no longer used by the admin UI.
-
-After deployment, open `/admin`, sign in, and confirm the dashboard reports the real database status. A successful login does not mean the crawler is running: the worker and database must be provisioned and independently checked. The free Render web service may sleep when idle.
