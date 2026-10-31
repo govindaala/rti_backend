@@ -23,6 +23,9 @@ uvicorn app.main:app --reload
 - `GET /api/v1/health/database`
 - `GET /api/v1/admin/dashboard` — सार्वजनिक, केवल aggregate/read-only
 - `POST /api/v1/admin/sources` — `X-Admin-Token` आवश्यक
+- `POST /api/v1/research/search` — केवल `verified` कानूनी दस्तावेज़ों में खोज
+- `POST /api/v1/analysis/checklist` — Applicant/PIO के लिए नियम-आधारित प्रारंभिक checklist
+- `POST /api/v1/drafts/rti` — हिन्दी/English RTI आवेदन मसौदा; कोई auto-submit नहीं
 - `GET /app` — user interface
 - `GET /admin` — password-free read-only dashboard
 - `GET /docs` — API schema
@@ -49,5 +52,10 @@ ruff check app tests
 pytest
 ```
 
+## नई शोध और ड्राफ्ट सुविधाएँ
+- Research API केवल `rti.legal_documents.status = 'verified'` वाले दस्तावेज़ों को लौटाती है; pending/review_required crawler output कभी कानूनी प्रमाण के रूप में नहीं दिखता। अभी खोज exact phrase substring आधारित है, semantic/vector search नहीं।
+- Analysis checklist Applicant और PIO के लिए अलग जाँच-बिंदु देती है, पर यह AI inference या अंतिम कानूनी राय नहीं है।
+- RTI draft API हिन्दी/English मसौदा बनाती है। मसौदा database में save या किसी सरकारी portal पर submit नहीं होता। उपयोगकर्ता को लागू केंद्र/राज्य नियम, शुल्क और सही प्राधिकरण जाँचना होगा।
+
 ## अभी क्या शामिल नहीं है
-पूर्ण login/session/role system, user/subscription management, legal decision verification workflow, OCR for scanned PDFs, multi-page website crawling/link discovery, semantic search/index, indigenous AI inference/training runtime, full audit/consent system, backups/restore drills और production worker orchestration अभी अलग engineering phases हैं। इनका झूठा दावा नहीं किया जाता।
+पूर्ण login/session/role system, user/subscription management, case-law content verification UI, scanned PDF OCR, recursive multi-page crawling, semantic/vector search, स्व-नियंत्रित AI inference/training runtime, पूर्ण audit/consent workflow, backups/restore drills और production worker orchestration अभी शामिल नहीं हैं। इनका झूठा दावा नहीं किया जाता।
