@@ -3,7 +3,7 @@
 
 import pytest
 
-from app.services.crawler import _safe_url
+from app.services.crawler import _safe_url, extract_html_text
 
 
 def test_crawler_accepts_official_https_url() -> None:
@@ -22,3 +22,15 @@ def test_crawler_accepts_official_https_url() -> None:
 def test_crawler_rejects_unsafe_urls(url: str) -> None:
     with pytest.raises(ValueError):
         _safe_url(url)
+
+
+def test_html_extraction_removes_scripts_styles_and_normalizes_whitespace() -> None:
+    """Extracted legal text must not contain scripts, styles, or HTML tags."""
+    result = extract_html_text(
+        "<html><style>.hidden { display:none }</style>"
+        "<body><h1>RTI Act</h1><script>alert('x')</script>"
+        "<p>Section   6(1)   provides information.</p></body></html>"
+    )
+    assert result == "RTI Act Section 6(1) provides information."
+    assert "alert" not in result
+    assert "display:none" not in result
