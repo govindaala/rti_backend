@@ -7,6 +7,8 @@ import signal
 import sys
 from threading import Event
 
+import httpx
+
 from app.core.config import settings
 from app.core.database import get_connection
 from app.services.crawler import classify_document_type, discover_legal_links, fetch_document
@@ -14,6 +16,16 @@ from app.services.crawler import classify_document_type, discover_legal_links, f
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 LOGGER = logging.getLogger("rti.worker")
 STOP = Event()
+
+
+def _is_retryable_error(error: Exception) -> bool:
+    """केवल transient network/HTTP failures को सीमित retry दें."""
+    if isinstance(error, httpx.TransportError):
+        return True
+    return (
+        isinstance(error, httpx.HTTPStatusError)
+        and error.response.status_code in {408, 425, 429, 500, 502, 503, 504}
+    )
 
 
 def _stop_worker(signum: int, frame: object) -> None:
@@ -229,6 +241,33 @@ def process_one() -> bool:
             else "FETCH_OR_EXTRACTION_FAILED"
         )
         with get_connection() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT attempts, max_attempts FROM rti.crawl_jobs WHERE id=%s",
+                (job_id,),
+            )
+            attempts, max_attempts = cursor.fetchone()
+            if _is_retryable_error(exc) and attempts < max_attempts:
+                cursor.execute(
+                    """
+                    UPDATE rti.crawl_jobs SET status='queued',
+                        last_error_code='TRANSIENT_FETCH_ERROR',
+                        finished_at=NULL, heartbeat_at=now(), updated_at=now()
+                    WHERE id=%s
+                    """,
+                    (job_id,),
+                )
+                cursor.execute(
+                    """
+                    INSERT INTO rti.crawl_job_events(job_id,event_type,message)
+                    VALUES(%s,'retry','Transient fetch failure; job returned to queue')
+                    """,
+                    (job_id,),
+                )
+                cursor.execute(
+                    "UPDATE rti.research_sources SET status='discovering' WHERE id=%s",
+                    (source_id,),
+                )
+                return True
             cursor.execute(
                 """
                 UPDATE rti.crawl_jobs SET status='failed', failed_count=1,
