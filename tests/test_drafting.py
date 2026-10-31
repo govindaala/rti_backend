@@ -61,3 +61,26 @@ def test_analysis_checklist_is_role_specific_and_disclaims_final_opinion() -> No
     assert body["role"] == "applicant"
     assert any("प्रथम अपील" in item for item in body["checklist"])
     assert "अंतिम कानूनी राय" in body["notice"]
+
+
+def test_first_appeal_draft_is_not_submitted() -> None:
+    """First appeal draft carries Section 19(1) and remains user-controlled."""
+    response = client.post(
+        "/api/v1/drafts/first-appeal",
+        json={
+            "language": "hi",
+            "public_authority": "जिला शिक्षा अधिकारी",
+            "first_appellate_authority": "संयुक्त संचालक, शिक्षा",
+            "applicant_name": "परीक्षण आवेदक",
+            "postal_address": "परीक्षण पता, मध्य प्रदेश",
+            "rti_application_date": "01-10-2026",
+            "pio_reply_date": "25-10-2026",
+            "grounds": ["माँगी गई दो सूचनाओं में से एक का उत्तर नहीं दिया गया"],
+            "relief_sought": "बिंदु 2 की प्रमाणित सूचना उपलब्ध कराई जाए",
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["submitted"] is False
+    assert "धारा 19(1)" in body["draft"]
+    assert "बिंदु 2" in body["draft"]
