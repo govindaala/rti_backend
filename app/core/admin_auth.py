@@ -75,7 +75,7 @@ def read_session(request: Request) -> dict[str, Any]:
 
         payload = json.loads(_b64decode(body))
         if not isinstance(payload, dict):
-            raise ValueError("invalid payload")
+            raise TypeError("invalid payload")
         if (
             payload.get("sub") != settings.admin_id
             or int(payload.get("exp", 0)) <= int(time.time())
