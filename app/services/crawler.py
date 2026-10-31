@@ -2,7 +2,9 @@
 """सीमित और allowlist-आधारित सरकारी स्रोत fetch तथा text extraction."""
 
 import hashlib
+import io
 import re
+from html import unescape
 from urllib.parse import urlsplit
 
 import httpx
@@ -15,8 +17,6 @@ USER_AGENT = "RTI-ResearchBot/0.1 (+respectful public legal research)"
 
 def extract_html_text(html: str) -> str:
     """HTML से script/style हटाकर whitespace-normalized plain text निकालें."""
-    from html import unescape
-
     without_active_content = re.sub(
         r"(?is)<(script|style|noscript)\\b[^>]*>.*?</\\1\\s*>",
         " ",
@@ -36,7 +36,11 @@ def _safe_url(url: str) -> str:
     return url
 
 
-def fetch_document(url: str, timeout_seconds: int = 20, max_bytes: int = 12_000_000) -> dict:
+def fetch_document(
+    url: str,
+    timeout_seconds: int = 20,
+    max_bytes: int = 12_000_000,
+) -> dict:
     """Redirect follow किए बिना सीमित bytes fetch करें; redirect को अलग review चाहिए."""
     safe_url = _safe_url(url)
     with (
@@ -58,23 +62,18 @@ def fetch_document(url: str, timeout_seconds: int = 20, max_bytes: int = 12_000_
             body.extend(chunk)
             if len(body) > max_bytes:
                 raise ValueError("Document exceeds configured size limit")
+
     raw = bytes(body)
     if content_type == "application/pdf":
-        import io
-
         reader = PdfReader(io.BytesIO(raw), strict=False)
-        text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        text = "\\n".join(page.extract_text() or "" for page in reader.pages)
         pages = len(reader.pages)
         kind = "pdf"
     else:
-        from html import unescape
-
-        decoded = raw.decode("utf-8", errors="replace")
-        decoded = re.sub(r"(?is)<(script|style|noscript).*?>.*?</\\1>", " ", decoded)
-        decoded = re.sub(r"(?s)<[^>]+>", " ", decoded)
-        text = unescape(re.sub(r"\\s+", " ", decoded)).strip()
+        text = extract_html_text(raw.decode("utf-8", errors="replace"))
         pages = None
         kind = "html"
+
     return {
         "final_url": safe_url,
         "content_type": content_type,
