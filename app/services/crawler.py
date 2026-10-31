@@ -13,6 +13,19 @@ from app.services.source_registry import is_official_source_url
 USER_AGENT = "RTI-ResearchBot/0.1 (+respectful public legal research)"
 
 
+def extract_html_text(html: str) -> str:
+    """HTML से script/style हटाकर whitespace-normalized plain text निकालें."""
+    from html import unescape
+
+    without_active_content = re.sub(
+        r"(?is)<(script|style|noscript)\\b[^>]*>.*?</\\1\\s*>",
+        " ",
+        html,
+    )
+    without_tags = re.sub(r"(?s)<[^>]+>", " ", without_active_content)
+    return unescape(re.sub(r"\\s+", " ", without_tags)).strip()
+
+
 def _safe_url(url: str) -> str:
     """केवल HTTPS allowlisted hostname और सामान्य web ports स्वीकार करें."""
     parsed = urlsplit(url)
