@@ -65,3 +65,5 @@ def test_official_domain_detection_rejects_lookalike_hosts() -> None:
     assert is_official_source_url("https://cic.gov.in.attacker.example/") is False
     assert is_official_source_url("https://fakegov.in/") is False
     assert is_official_source_url("https://example.com/") is False
+    assert is_official_source_url("http://cic.gov.in/decision") is False
+    assert is_official_source_url("javascript://cic.gov.in/") is False
