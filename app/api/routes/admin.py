@@ -245,8 +245,10 @@ def verify_legal_document(
                 """,
                 (
                     job_id,
-                    f"Human reviewer verified document {document_id} ({canonical_url}): "
-                    f"{payload.review_note}",
+                    (
+                        f"Human reviewer verified document {document_id} ({canonical_url}): "
+                        f"{payload.review_note}"
+                    ),
                 ),
             )
         return {
