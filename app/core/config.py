@@ -12,7 +12,6 @@ class Settings:
     app_name: str = os.getenv("APP_NAME", "RTI Intelligence Platform API")
     app_env: str = os.getenv("APP_ENV", "development")
     api_v1_prefix: str = os.getenv("API_V1_PREFIX", "/api/v1")
-    firestore_project_id: str | None = os.getenv("FIRESTORE_PROJECT_ID")
 
 
 # पूरे ऐप में एक ही immutable configuration उपयोग करें।
