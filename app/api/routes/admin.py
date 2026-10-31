@@ -121,7 +121,10 @@ def submit_source(
                             WHEN rti.research_sources.status = 'paused' THEN 'queued'
                             ELSE rti.research_sources.status
                         END,
-                        updated_at = now()
+                        updated_at = CASE
+                            WHEN rti.research_sources.status = 'paused' THEN now()
+                            ELSE rti.research_sources.updated_at
+                        END
                 RETURNING id, status
                 """,
                 (submitted_url, submitted_url, payload.label),
