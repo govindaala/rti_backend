@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#102b46">
   <meta name="robots" content="noindex, nofollow">
-  <title>RTI साथी — Live Research Control</title>
+  <title>RTI साथी — Admin Control</title>
   <link rel="stylesheet" href="/assets/styles.css">
   <script defer src="/assets/admin.js"></script>
 </head>
@@ -16,52 +16,58 @@
     <nav><a href="/app">यूजर इंटरफेस</a></nav><span class="admin-badge">ADMIN</span>
   </header>
   <main class="container admin-container">
-    <section class="admin-heading">
-      <div class="eyebrow">LIVE SYSTEM MONITOR</div>
-      <h1>कानूनी शोध नियंत्रण कक्ष</h1>
-      <p>यह पैनल वास्तविक database queue, worker jobs और निकाले गए दस्तावेज़ दिखाता है। आँकड़े हर 15 सेकंड में अपडेट होते हैं।</p>
-      <button class="secondary" id="refresh-dashboard" type="button">अभी रीफ्रेश करें</button>
-      <p id="dashboard-status" class="notice" role="status">डेटा लोड हो रहा है...</p>
-    </section>
-
-    <section class="panel" aria-labelledby="source-title">
-      <div class="eyebrow">APPROVED OFFICIAL SOURCES</div>
-      <h2 id="source-title">नई सरकारी / न्यायिक वेबसाइट जोड़ें</h2>
-      <p>केवल HTTPS के allowlisted सरकारी/न्यायिक domains स्वीकार होंगे। URL जोड़ने के बाद worker queue में job बनेगा।</p>
-      <form id="source-form" class="form-grid">
-        <label for="source-url">वेबसाइट या judgment/PDF का URL</label>
-        <input id="source-url" name="url" type="url" required maxlength="2048"
-          placeholder="https://cic.gov.in/" autocomplete="url">
-        <label for="source-label">स्रोत का नाम (वैकल्पिक)</label>
-        <input id="source-label" name="label" type="text" maxlength="200"
-          placeholder="जैसे केंद्रीय सूचना आयोग">
-        <label for="admin-token">Admin approval token</label>
-        <input id="admin-token" name="token" type="password" required
-          autocomplete="current-password" placeholder="Render में सेट किया गया ADMIN_API_TOKEN">
-        <button id="submit-source" type="submit">स्रोत स्वीकृत करें और Queue में डालें</button>
-        <p id="source-status" class="notice" role="status"></p>
+    <section id="login-panel" class="panel" hidden>
+      <div class="eyebrow">SECURE ADMIN LOGIN</div>
+      <h1>एडमिन लॉगिन</h1>
+      <p>Render Environment Group में निर्धारित Admin ID और Password से प्रवेश करें।</p>
+      <form id="login-form" class="form-grid">
+        <label for="admin-id">Admin ID</label>
+        <input id="admin-id" autocomplete="username" required maxlength="200">
+        <label for="admin-pass">Password</label>
+        <input id="admin-pass" type="password" autocomplete="current-password" required maxlength="500">
+        <button id="login-button" type="submit">सुरक्षित लॉगिन</button>
+        <p id="login-status" class="notice" role="status"></p>
       </form>
-      <p class="security-warning"><strong>ध्यान दें:</strong> Token केवल इस browser tab की memory में उपयोग होता है, save नहीं होता। किसी निजी/अनधिकृत वेबसाइट, login-protected सामग्री या robots.txt द्वारा मना किए गए path को crawl नहीं किया जाएगा।</p>
     </section>
-
-    <section class="admin-grid">
-      <article class="panel admin-card"><h2>Database</h2><p id="db-status">जाँच जारी...</p></article>
-      <article class="panel admin-card"><h2>Research Sources</h2><p class="metric-icon" id="source-count">—</p><div id="source-breakdown"></div></article>
-      <article class="panel admin-card"><h2>Crawl Jobs</h2><p id="job-total" class="metric-icon">—</p><div id="job-breakdown"></div></article>
-      <article class="panel admin-card"><h2>Legal Documents</h2><p id="document-total" class="metric-icon">—</p><div id="document-breakdown"></div></article>
-    </section>
-
-    <section class="panel">
-      <h2>हाल की Crawl गतिविधि</h2>
-      <div class="table-scroll"><table><thead><tr><th>स्थिति</th><th>URL</th><th>मिले लिंक</th><th>अपडेट</th></tr></thead>
-        <tbody id="recent-jobs"><tr><td colspan="4">लोड हो रहा है...</td></tr></tbody></table></div>
-    </section>
-    <section class="panel">
-      <h2>हाल में सुरक्षित दस्तावेज़</h2>
-      <div class="table-scroll"><table><thead><tr><th>शीर्षक</th><th>प्रकार</th><th>स्थिति</th><th>तारीख</th><th>समीक्षा</th></tr></thead>
-        <tbody id="recent-documents"><tr><td colspan="5">लोड हो रहा है...</td></tr></tbody></table></div>
-      <p class="security-warning"><strong>Legal verification:</strong> नए दस्तावेज़ पहले <code>review_required</code> में रखे जाते हैं। वे verified legal knowledge base में तब तक शामिल नहीं होंगे जब तक कानूनी reviewer स्रोत, निर्णय, तारीख और बाद के/overruling निर्णयों की जाँच करके टिप्पणी दर्ज न कर दे।</p>
-    </section>
+    <div id="admin-content" hidden>
+      <section class="admin-heading">
+        <div class="eyebrow">LIVE SYSTEM MONITOR</div>
+        <h1>कानूनी शोध नियंत्रण कक्ष</h1>
+        <p>यह पैनल वास्तविक database queue, worker jobs और निकाले गए दस्तावेज़ दिखाता है। आँकड़े हर 15 सेकंड में अपडेट होते हैं।</p>
+        <button class="secondary" id="refresh-dashboard" type="button">अभी रीफ्रेश करें</button>
+        <button class="secondary" id="logout-button" type="button">Logout</button>
+        <p id="dashboard-status" class="notice" role="status">डेटा लोड हो रहा है...</p>
+      </section>
+      <section class="panel" aria-labelledby="source-title">
+        <div class="eyebrow">APPROVED OFFICIAL SOURCES</div>
+        <h2 id="source-title">नई सरकारी / न्यायिक वेबसाइट जोड़ें</h2>
+        <p>केवल HTTPS के allowlisted सरकारी/न्यायिक domains स्वीकार होंगे। URL जोड़ने के बाद worker queue में job बनेगा।</p>
+        <form id="source-form" class="form-grid">
+          <label for="source-url">वेबसाइट या judgment/PDF का URL</label>
+          <input id="source-url" name="url" type="url" required maxlength="2048" placeholder="https://cic.gov.in/" autocomplete="url">
+          <label for="source-label">स्रोत का नाम (वैकल्पिक)</label>
+          <input id="source-label" name="label" type="text" maxlength="200" placeholder="जैसे केंद्रीय सूचना आयोग">
+          <button id="submit-source" type="submit">स्रोत स्वीकृत करें और Queue में डालें</button>
+          <p id="source-status" class="notice" role="status"></p>
+        </form>
+        <p class="security-warning"><strong>ध्यान दें:</strong> केवल सार्वजनिक सामग्री; login-protected या robots.txt द्वारा मना सामग्री crawl नहीं होगी।</p>
+      </section>
+      <section class="admin-grid">
+        <article class="panel admin-card"><h2>Database</h2><p id="db-status">जाँच जारी...</p></article>
+        <article class="panel admin-card"><h2>Research Sources</h2><p class="metric-icon" id="source-count">—</p><div id="source-breakdown"></div></article>
+        <article class="panel admin-card"><h2>Crawl Jobs</h2><p id="job-total" class="metric-icon">—</p><div id="job-breakdown"></div></article>
+        <article class="panel admin-card"><h2>Legal Documents</h2><p id="document-total" class="metric-icon">—</p><div id="document-breakdown"></div></article>
+      </section>
+      <section class="panel">
+        <h2>हाल की Crawl गतिविधि</h2>
+        <div class="table-scroll"><table><thead><tr><th>स्थिति</th><th>URL</th><th>मिले लिंक</th><th>अपडेट</th></tr></thead><tbody id="recent-jobs"><tr><td colspan="4">लोड हो रहा है...</td></tr></tbody></table></div>
+      </section>
+      <section class="panel">
+        <h2>हाल में सुरक्षित दस्तावेज़</h2>
+        <div class="table-scroll"><table><thead><tr><th>शीर्षक</th><th>प्रकार</th><th>स्थिति</th><th>तारीख</th><th>समीक्षा</th></tr></thead><tbody id="recent-documents"><tr><td colspan="5">लोड हो रहा है...</td></tr></tbody></table></div>
+        <p class="security-warning"><strong>Legal verification:</strong> नए दस्तावेज़ पहले review_required में रहते हैं। कानूनी reviewer द्वारा मूल स्रोत, निर्णय, तारीख और बाद के/overruling निर्णय जाँचने के बाद ही verify करें।</p>
+      </section>
+    </div>
     <footer><a href="/app">← यूजर इंटरफेस पर लौटें</a><span>RTI Intelligence Platform</span></footer>
   </main>
 </body>

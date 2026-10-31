@@ -18,7 +18,7 @@ from app.core.config import settings
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.2.0",
+    version="0.3.0",
     description=(
         "RTI कानूनी शोध और विश्लेषण के लिए प्रमाण-आधारित बैकएंड। "
         "यह सेवा स्वयं RTI आवेदन या अपील दाखिल नहीं करती।"
@@ -45,7 +45,7 @@ def user_interface() -> FileResponse:
 
 @app.get("/admin", include_in_schema=False)
 def admin_interface() -> FileResponse:
-    """बिना login का read-only operations dashboard लौटाएँ."""
+    """Login-protected control panel shell; APIs require authenticated session."""
     return FileResponse(WEB_DIRECTORY / "admin.html")
 
 
@@ -57,5 +57,6 @@ def root() -> dict[str, str]:
         "health_endpoint": f"{settings.api_v1_prefix}/health",
         "database_health_endpoint": f"{settings.api_v1_prefix}/health/database",
         "admin_dashboard_endpoint": f"{settings.api_v1_prefix}/admin/dashboard",
+        "admin_login_endpoint": f"{settings.api_v1_prefix}/admin/auth/login",
         "docs_endpoint": "/docs",
     }

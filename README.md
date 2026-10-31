@@ -21,14 +21,17 @@ uvicorn app.main:app --reload
 ## Live endpoints
 - `GET /api/v1/health`
 - `GET /api/v1/health/database`
-- `GET /api/v1/admin/dashboard` — live aggregate metrics और हाल की crawl activity
-- `POST /api/v1/admin/sources` — `X-Admin-Token` आवश्यक; source queue में डालता है
+- `POST /api/v1/admin/auth/login` — `ADMIN_ID` / `ADMIN_PASS` से secure admin login
+- `GET /api/v1/admin/auth/me` — current admin session और CSRF token
+- `POST /api/v1/admin/auth/logout` — CSRF-protected logout
+- `GET /api/v1/admin/dashboard` — authenticated live metrics और crawl activity
+- `POST /api/v1/admin/sources` — authenticated + CSRF-protected source queue
 - `POST /api/v1/research/search` — केवल `verified` कानूनी दस्तावेज़ों में खोज
 - `POST /api/v1/analysis/checklist` — Applicant/PIO के लिए नियम-आधारित प्रारंभिक checklist
 - `POST /api/v1/drafts/rti` — हिन्दी/English RTI आवेदन मसौदा; कोई auto-submit नहीं
 - `POST /api/v1/drafts/first-appeal` — धारा 19(1) के अंतर्गत प्रथम अपील मसौदा; कोई auto-submit नहीं
 - `GET /app` — user interface
-- `GET /admin` — live operations dashboard और token-protected source intake
+- `GET /admin` — secure login screen और authenticated live operations dashboard
 - `GET /docs` — API schema
 
 ## Supabase configuration
@@ -102,3 +105,16 @@ pytest
 
 ## अभी शेष प्रमुख कार्य
 पूर्ण authentication/session/role system, audited legal verification/review UI, OCR for scanned PDFs, richer court/tribunal discovery adapters, semantic/vector search, in-house AI inference and citation-grounded judgment analysis, consent/privacy workflow, immutable audit log, backups/restore drills, monitoring/alerts, and production load/security testing.
+
+
+## Admin login configuration (Render)
+
+Set these server-side variables on the **web service** or on an Environment Group linked to it:
+
+- `ADMIN_ID`: administrator login ID.
+- `ADMIN_PASS`: administrator password (keep secret; never put it in GitHub or chat).
+- `ADMIN_SESSION_SECRET`: independent random signing secret, at least 32 bytes. Generate it in a password manager or secure random generator; do not reuse the admin password.
+
+The browser receives only an 8-hour, signed, `HttpOnly`, `Secure`, `SameSite=Strict` session cookie. State-changing admin APIs also require the session CSRF token. The old `ADMIN_API_TOKEN` header is no longer used by the admin UI.
+
+After deployment, open `/admin`, sign in, and confirm the dashboard reports the real database status. A successful login does not mean the crawler is running: the worker and database must be provisioned and independently checked. The free Render web service may sleep when idle.

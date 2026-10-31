@@ -1,18 +1,26 @@
 # रिपॉजिटरी पथ: rti_backend/app/api/routes/admin.py
-"""Read-only live operations dashboard और token-protected source intake API."""
+"""Session-authenticated live operations dashboard and privileged admin APIs."""
 
 import hmac
 from urllib.parse import urlsplit
 
 import psycopg
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, Header, HTTPException, Request, Response
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
+from app.core.admin_auth import COOKIE_NAME, SESSION_TTL_SECONDS, create_session, require_admin
 from app.core.config import settings
 from app.core.database import get_connection
 from app.services.source_registry import is_official_source_url
 
 router = APIRouter(tags=["प्रशासन"])
+
+
+class AdminLogin(BaseModel):
+    """Admin sign-in credentials; never logged or returned."""
+
+    admin_id: str = Field(min_length=1, max_length=200)
+    admin_pass: str = Field(min_length=1, max_length=500)
 
 
 class DocumentVerification(BaseModel):
@@ -23,7 +31,6 @@ class DocumentVerification(BaseModel):
 
     @model_validator(mode="after")
     def require_explicit_confirmation(self) -> "DocumentVerification":
-        """सिर्फ स्पष्ट reviewer confirmation पर document verified हो."""
         if not self.confirm_reviewed:
             raise ValueError("दस्तावेज़ की वास्तविक समीक्षा की पुष्टि आवश्यक है")
         self.review_note = self.review_note.strip()
@@ -39,19 +46,49 @@ class SourceSubmission(BaseModel):
     label: str | None = Field(default=None, max_length=200)
 
 
-def _require_admin(token: str | None) -> None:
-    """केवल server-side secret से privileged operation अधिकृत करें."""
-    expected = settings.admin_api_token
-    if not expected or not token or not hmac.compare_digest(token, expected):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Administrator authorization required",
-        )
+@router.post("/admin/auth/login", summary="Administrator login")
+def admin_login(payload: AdminLogin, response: Response) -> dict[str, str]:
+    """Render environment credentials से signed HttpOnly session बनाएँ."""
+    expected_id = settings.admin_id or ""
+    expected_pass = settings.admin_pass or ""
+    id_ok = hmac.compare_digest(payload.admin_id.encode(), expected_id.encode())
+    pass_ok = hmac.compare_digest(payload.admin_pass.encode(), expected_pass.encode())
+    if not expected_id or not expected_pass or not id_ok or not pass_ok:
+        raise HTTPException(status_code=401, detail="गलत Admin ID या Password")
+    token, csrf = create_session()
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=token,
+        max_age=SESSION_TTL_SECONDS,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+        path="/",
+    )
+    return {"authenticated": "true", "csrf_token": csrf, "expires_in": str(SESSION_TTL_SECONDS)}
+
+
+@router.get("/admin/auth/me", summary="Current administrator session")
+def admin_me(request: Request) -> dict[str, str]:
+    session = require_admin(request)
+    return {"authenticated": "true", "csrf_token": session["csrf"], "admin_id": session["sub"]}
+
+
+@router.post("/admin/auth/logout", summary="Administrator logout")
+def admin_logout(
+    request: Request,
+    response: Response,
+    x_csrf_token: str | None = Header(default=None),
+) -> dict[str, bool]:
+    require_admin(request, x_csrf_token)
+    response.delete_cookie(key=COOKIE_NAME, path="/", secure=True, httponly=True, samesite="strict")
+    return {"logged_out": True}
 
 
 @router.get("/admin/dashboard", summary="Live crawler dashboard आँकड़े")
-def dashboard_summary() -> dict:
-    """कुल आँकड़े और हाल के सार्वजनिक कानूनी दस्तावेज़ लौटाएँ."""
+def dashboard_summary(request: Request) -> dict:
+    """केवल authenticated admin को live database operations आँकड़े दें."""
+    require_admin(request)
     if not settings.database_url:
         return {
             "database": "not_configured", "sources": {}, "jobs": {},
@@ -66,59 +103,41 @@ def dashboard_summary() -> dict:
             cursor.execute("SELECT status, count(*) FROM rti.legal_documents GROUP BY status")
             documents = {row[0]: row[1] for row in cursor.fetchall()}
             cursor.execute(
-                """
-                SELECT j.id::text, j.status, j.current_url, j.discovered_count,
-                       j.processed_count, j.failed_count, j.updated_at
-                FROM rti.crawl_jobs j
-                ORDER BY j.updated_at DESC LIMIT 10
-                """
+                """SELECT j.id::text, j.status, j.current_url, j.discovered_count,
+                          j.processed_count, j.failed_count, j.updated_at
+                   FROM rti.crawl_jobs j ORDER BY j.updated_at DESC LIMIT 10"""
             )
             recent_jobs = [
-                {
-                    "id": row[0], "status": row[1], "url": row[2],
-                    "discovered": row[3], "processed": row[4],
-                    "failed": row[5], "updated_at": row[6].isoformat(),
-                }
-                for row in cursor.fetchall()
+                {"id": r[0], "status": r[1], "url": r[2], "discovered": r[3],
+                 "processed": r[4], "failed": r[5], "updated_at": r[6].isoformat()}
+                for r in cursor.fetchall()
             ]
             cursor.execute(
-                """
-                SELECT id::text, job_id::text, title, canonical_url, document_type,
-                       status, created_at
-                FROM rti.legal_documents
-                ORDER BY created_at DESC LIMIT 10
-                """
+                """SELECT id::text, job_id::text, title, canonical_url, document_type,
+                          status, created_at
+                   FROM rti.legal_documents ORDER BY created_at DESC LIMIT 10"""
             )
             recent_documents = [
-                {
-                    "id": row[0], "job_id": row[1], "title": row[2], "url": row[3],
-                    "type": row[4], "status": row[5],
-                    "created_at": row[6].isoformat(),
-                }
-                for row in cursor.fetchall()
+                {"id": r[0], "job_id": r[1], "title": r[2], "url": r[3],
+                 "type": r[4], "status": r[5], "created_at": r[6].isoformat()}
+                for r in cursor.fetchall()
             ]
-        return {
-            "database": "connected",
-            "sources": sources,
-            "jobs": jobs,
-            "documents": documents,
-            "recent_jobs": recent_jobs,
-            "recent_documents": recent_documents,
-        }
+        return {"database": "connected", "sources": sources, "jobs": jobs,
+                "documents": documents, "recent_jobs": recent_jobs,
+                "recent_documents": recent_documents}
     except (psycopg.Error, RuntimeError):
-        return {
-            "database": "unavailable", "sources": {}, "jobs": {},
-            "documents": {}, "recent_jobs": [], "recent_documents": [],
-        }
+        return {"database": "unavailable", "sources": {}, "jobs": {},
+                "documents": {}, "recent_jobs": [], "recent_documents": []}
 
 
 @router.post("/admin/sources", status_code=202, summary="कानूनी स्रोत जोड़ें और crawl queue करें")
 def submit_source(
     payload: SourceSubmission,
-    x_admin_token: str | None = Header(default=None),
+    request: Request,
+    x_csrf_token: str | None = Header(default=None),
 ) -> dict:
     """Allowlisted HTTPS सरकारी स्रोत को durable database queue में जोड़ें."""
-    _require_admin(x_admin_token)
+    require_admin(request, x_csrf_token)
     submitted_url = str(payload.url)
     parsed = urlsplit(submitted_url)
     if not is_official_source_url(submitted_url):
@@ -128,97 +147,65 @@ def submit_source(
     try:
         with get_connection() as connection, connection.cursor() as cursor:
             cursor.execute(
-                """
-                INSERT INTO rti.research_sources
-                    (submitted_url, normalized_url, source_label, status)
-                VALUES (%s, %s, %s, 'queued')
-                ON CONFLICT (normalized_url) DO UPDATE
-                    SET source_label = COALESCE(EXCLUDED.source_label, rti.research_sources.source_label),
-                        status = CASE
-                            WHEN rti.research_sources.status = 'paused' THEN 'queued'
-                            ELSE rti.research_sources.status
-                        END,
-                        updated_at = CASE
-                            WHEN rti.research_sources.status = 'paused' THEN now()
-                            ELSE rti.research_sources.updated_at
-                        END
-                RETURNING id, status
-                """,
+                """INSERT INTO rti.research_sources
+                       (submitted_url, normalized_url, source_label, status)
+                   VALUES (%s, %s, %s, 'queued')
+                   ON CONFLICT (normalized_url) DO UPDATE
+                     SET source_label = COALESCE(EXCLUDED.source_label, rti.research_sources.source_label),
+                         status = CASE WHEN rti.research_sources.status = 'paused'
+                                       THEN 'queued' ELSE rti.research_sources.status END,
+                         updated_at = CASE WHEN rti.research_sources.status = 'paused'
+                                           THEN now() ELSE rti.research_sources.updated_at END
+                   RETURNING id, status""",
                 (submitted_url, submitted_url, payload.label),
             )
             source_id, source_status = cursor.fetchone()
             cursor.execute(
-                """
-                INSERT INTO rti.crawl_jobs (source_id, status, current_url)
-                SELECT %s, 'queued', %s
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM rti.crawl_jobs
-                    WHERE source_id=%s AND current_url=%s
-                      AND status IN ('queued','running')
-                )
-                RETURNING id
-                """,
+                """INSERT INTO rti.crawl_jobs (source_id, status, current_url)
+                   SELECT %s, 'queued', %s
+                   WHERE NOT EXISTS (
+                     SELECT 1 FROM rti.crawl_jobs
+                     WHERE source_id=%s AND current_url=%s AND status IN ('queued','running')
+                   ) RETURNING id""",
                 (source_id, submitted_url, source_id, submitted_url),
             )
             row = cursor.fetchone()
             if row:
-                job_id = row[0]
+                job_id, queued = row[0], True
                 cursor.execute(
-                    """
-                    INSERT INTO rti.crawl_job_events (job_id, event_type, message)
-                    VALUES (%s, 'queued', 'Administrator approved source for crawling')
-                    """,
+                    """INSERT INTO rti.crawl_job_events (job_id, event_type, message)
+                       VALUES (%s, 'queued', 'Administrator approved source for crawling')""",
                     (job_id,),
                 )
-                queued = True
             else:
                 cursor.execute(
-                    """
-                    SELECT id FROM rti.crawl_jobs
-                    WHERE source_id=%s AND current_url=%s
-                      AND status IN ('queued','running')
-                    ORDER BY created_at DESC LIMIT 1
-                    """,
+                    """SELECT id FROM rti.crawl_jobs
+                       WHERE source_id=%s AND current_url=%s AND status IN ('queued','running')
+                       ORDER BY created_at DESC LIMIT 1""",
                     (source_id, submitted_url),
                 )
-                job_id = cursor.fetchone()[0]
-                queued = False
-        return {
-            "accepted": True,
-            "queued": queued,
-            "source_id": str(source_id),
-            "job_id": str(job_id),
-            "source_status": source_status,
-            "message": "Source is queued for background processing" if queued else "Source already queued or running",
-        }
+                job_id, queued = cursor.fetchone()[0], False
+        return {"accepted": True, "queued": queued, "source_id": str(source_id),
+                "job_id": str(job_id), "source_status": source_status,
+                "message": "Source queued" if queued else "Source already queued or running"}
     except psycopg.Error as exc:
-        raise HTTPException(
-            status_code=503,
-            detail="Source queue is temporarily unavailable",
-        ) from exc
+        raise HTTPException(status_code=503, detail="Source queue is temporarily unavailable") from exc
 
 
-
-@router.post(
-    "/admin/documents/{document_id}/verify",
-    summary="मानव समीक्षा के बाद कानूनी दस्तावेज़ verified करें",
-)
+@router.post("/admin/documents/{document_id}/verify", summary="मानव समीक्षा के बाद कानूनी दस्तावेज़ verified करें")
 def verify_legal_document(
     document_id: str,
     payload: DocumentVerification,
-    x_admin_token: str | None = Header(default=None),
+    request: Request,
+    x_csrf_token: str | None = Header(default=None),
 ) -> dict:
     """review_required दस्तावेज़ को स्पष्ट reviewer confirmation के बाद verified करें."""
-    _require_admin(x_admin_token)
+    require_admin(request, x_csrf_token)
     try:
         with get_connection() as connection, connection.cursor() as cursor:
             cursor.execute(
-                """
-                SELECT job_id, status, canonical_url
-                FROM rti.legal_documents
-                WHERE id=%s
-                FOR UPDATE
-                """,
+                """SELECT job_id, status, canonical_url FROM rti.legal_documents
+                   WHERE id=%s FOR UPDATE""",
                 (document_id,),
             )
             row = cursor.fetchone()
@@ -226,45 +213,21 @@ def verify_legal_document(
                 raise HTTPException(status_code=404, detail="दस्तावेज़ नहीं मिला")
             job_id, current_status, canonical_url = row
             if current_status != "review_required":
-                raise HTTPException(
-                    status_code=409,
-                    detail="केवल review_required दस्तावेज़ को verified किया जा सकता है",
-                )
+                raise HTTPException(status_code=409, detail="केवल review_required दस्तावेज़ को verified किया जा सकता है")
             cursor.execute(
-                """
-                UPDATE rti.legal_documents
-                SET status='verified',
-                    review_note=%s,
-                    verified_at=now(),
-                    updated_at=now(),
-                    last_error_code=NULL
-                WHERE id=%s
-                """,
+                """UPDATE rti.legal_documents
+                   SET status='verified', review_note=%s, verified_at=now(),
+                       updated_at=now(), last_error_code=NULL WHERE id=%s""",
                 (payload.review_note, document_id),
             )
             cursor.execute(
-                """
-                INSERT INTO rti.crawl_job_events(job_id,event_type,message)
-                VALUES(%s,'document_verified',%s)
-                """,
-                (
-                    job_id,
-                    (
-                        f"Human reviewer verified document {document_id} ({canonical_url}): "
-                        f"{payload.review_note}"
-                    ),
-                ),
+                """INSERT INTO rti.crawl_job_events(job_id,event_type,message)
+                   VALUES(%s,'document_verified',%s)""",
+                (job_id, f"Human reviewer verified document {document_id} ({canonical_url}): {payload.review_note}"),
             )
-        return {
-            "verified": True,
-            "document_id": document_id,
-            "status": "verified",
-            "notice": "मानव समीक्षा दर्ज हुई; दस्तावेज़ अब verified research search में उपलब्ध है।",
-        }
+        return {"verified": True, "document_id": document_id, "status": "verified",
+                "notice": "मानव समीक्षा दर्ज हुई; दस्तावेज़ verified research search में उपलब्ध है।"}
     except HTTPException:
         raise
     except psycopg.Error as exc:
-        raise HTTPException(
-            status_code=503,
-            detail="Document review service is temporarily unavailable",
-        ) from exc
+        raise HTTPException(status_code=503, detail="Document review service is temporarily unavailable") from exc
