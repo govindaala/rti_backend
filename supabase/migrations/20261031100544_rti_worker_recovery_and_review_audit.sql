@@ -1,4 +1,4 @@
--- रिपॉजिटरी पथ: rti_backend/migrations/001_rti_research_schema.sql
+-- रिपॉजिटरी पथ: rti_backend/supabase/migrations/20261031100544_rti_worker_recovery_and_review_audit.sql
 -- RTI Research schema: durable crawler queue, source registry और verified legal corpus.
 -- Supabase SQL Editor में एक बार चलाएँ; statements idempotent रखे गए हैं।
 

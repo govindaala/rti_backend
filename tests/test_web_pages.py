@@ -42,3 +42,34 @@ def test_admin_javascript_contains_human_document_review_action() -> None:
     assert response.status_code == 200
     assert "समीक्षा के बाद Verify" in response.text
     assert "confirm_reviewed" in response.text
+
+
+def test_applicant_workspace_calls_live_checklist_api() -> None:
+    """Applicant form सक्रिय हो और backend checklist API से जुड़ा हो."""
+    page = client.get("/app")
+    script = client.get("/assets/app.js")
+
+    assert page.status_code == 200
+    assert 'id="analysis-result"' in page.text
+    assert 'type="submit" data-i18n="submitQuestion"' in page.text
+    assert 'type="submit" disabled' not in page.text
+    assert script.status_code == 200
+    assert "/api/v1/analysis/checklist" in script.text
+    assert "rules-based preliminary checklist" in script.text
+
+
+def test_applicant_checklist_api_returns_rule_based_checks() -> None:
+    """User-facing checklist endpoint usable है और AI legal opinion का दावा नहीं करता."""
+    response = client.post(
+        "/api/v1/analysis/checklist",
+        json={
+            "role": "applicant",
+            "facts": "PIO ने RTI आवेदन का जवाब नहीं दिया है और समय-सीमा बीत चुकी है।",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["role"] == "applicant"
+    assert len(payload["checklist"]) == 5
+    assert "AI model inference" in payload["notice"]

@@ -50,10 +50,15 @@
         <textarea id="question" rows="5" required minlength="20" data-placeholder="questionPlaceholder" placeholder="अपना प्रश्न, PIO का जवाब या संबंधित कानूनी स्थिति लिखें..."></textarea>
         <label for="documents" data-i18n="documentsLabel">दस्तावेज़ अपलोड (अभी उपलब्ध नहीं)</label>
         <input id="documents" type="file" accept=".pdf,.txt,.doc,.docx,.jpg,.jpeg,.png" multiple disabled>
-        <p class="hint" data-i18n="privacyHint">फाइल अपलोड और प्रश्न विश्लेषण backend अभी सक्रिय नहीं हैं। कोई जानकारी सर्वर पर नहीं भेजी जाएगी।</p>
-        <button class="primary" type="submit" disabled data-i18n="submitQuestion">विश्लेषण सुविधा अभी तैयार नहीं</button>
+        <p class="hint" data-i18n="privacyHint">आपका प्रश्न backend पर भेजकर केवल नियम-आधारित प्रारंभिक जाँच सूची बनाई जाएगी। यह AI कानूनी राय नहीं है।</p>
+        <button class="primary" type="submit" data-i18n="submitQuestion">प्रारंभिक जाँच सूची बनाएँ</button>
         <p class="notice" id="analysis-status" role="status" aria-live="polite"></p>
       </form>
+      <section id="analysis-result" class="panel" hidden aria-live="polite">
+        <h3 data-i18n="resultTitle">प्रारंभिक जाँच सूची</h3>
+        <ol id="analysis-checklist"></ol>
+        <p class="notice" id="analysis-result-notice"></p>
+      </section>
     </section>
 
     <section class="how panel" id="how">

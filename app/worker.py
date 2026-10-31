@@ -18,6 +18,11 @@ LOGGER = logging.getLogger("rti.worker")
 STOP = Event()
 
 
+def _retry_delay_seconds(attempts: int) -> int:
+    """बार-बार विफल स्रोतों पर exponential backoff लागू करें."""
+    return min(30 * (2 ** min(max(attempts - 1, 0), 6)), 1800)
+
+
 def _is_retryable_error(error: Exception) -> bool:
     """केवल transient network/HTTP failures को सीमित retry दें."""
     if isinstance(error, httpx.TransportError):
@@ -127,6 +132,12 @@ def recover_stale_jobs(stale_after_seconds: int = 300) -> int:
                             SELECT 1 FROM rti.crawl_jobs AS job
                             WHERE job.source_id = source.id
                               AND job.status IN ('queued', 'running')
+                              AND NOT EXISTS (
+                                  SELECT 1 FROM recovered AS item WHERE item.id = job.id
+                              )
+                        ) OR EXISTS (
+                            SELECT 1 FROM recovered AS item
+                            WHERE item.source_id = source.id AND item.status = 'queued'
                         ) THEN 'discovering'
                         ELSE 'failed'
                     END,
@@ -204,12 +215,31 @@ def process_one() -> bool:
                      content_type, extracted_text, content_sha256, page_count, status)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'review_required')
                 ON CONFLICT (canonical_url) DO UPDATE SET
+                    source_id=EXCLUDED.source_id,
+                    job_id=EXCLUDED.job_id,
                     title=EXCLUDED.title,
                     extracted_text=EXCLUDED.extracted_text,
-                    content_sha256=EXCLUDED.content_sha256,
                     content_type=EXCLUDED.content_type,
                     page_count=EXCLUDED.page_count,
-                    status='review_required',
+                    status=CASE
+                        WHEN rti.legal_documents.content_sha256
+                             IS DISTINCT FROM EXCLUDED.content_sha256
+                        THEN 'review_required'
+                        ELSE rti.legal_documents.status
+                    END,
+                    review_note=CASE
+                        WHEN rti.legal_documents.content_sha256
+                             IS DISTINCT FROM EXCLUDED.content_sha256
+                        THEN NULL
+                        ELSE rti.legal_documents.review_note
+                    END,
+                    verified_at=CASE
+                        WHEN rti.legal_documents.content_sha256
+                             IS DISTINCT FROM EXCLUDED.content_sha256
+                        THEN NULL
+                        ELSE rti.legal_documents.verified_at
+                    END,
+                    content_sha256=EXCLUDED.content_sha256,
                     updated_at=now()
                 """,
                 (
@@ -257,7 +287,8 @@ def process_one() -> bool:
                 """
                 UPDATE rti.crawl_jobs SET status='completed',
                     discovered_count=%s, processed_count=1, failed_count=0,
-                    heartbeat_at=now(), finished_at=now(), updated_at=now()
+                    last_error_code=NULL, heartbeat_at=now(),
+                    finished_at=now(), updated_at=now()
                 WHERE id=%s
                 """,
                 (queued_links, job_id),
@@ -281,10 +312,12 @@ def process_one() -> bool:
                 """
                 UPDATE rti.research_sources
                 SET status=%s,
+                    last_error_code=CASE WHEN %s='completed' THEN NULL ELSE last_error_code END,
                     updated_at=CASE WHEN %s='completed' THEN now() ELSE updated_at END
                 WHERE id=%s
                 """,
                 (
+                    "discovering" if pending else "completed",
                     "discovering" if pending else "completed",
                     "discovering" if pending else "completed",
                     source_id,
@@ -316,7 +349,7 @@ def process_one() -> bool:
                         finished_at=NULL, heartbeat_at=now(), updated_at=now()
                     WHERE id=%s
                     """,
-                    (min(30 * (2 ** max(attempts - 1, 0)), 1800), job_id),
+                    (_retry_delay_seconds(attempts), job_id),
                 )
                 cursor.execute(
                     """

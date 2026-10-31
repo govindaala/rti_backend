@@ -233,10 +233,14 @@ def verify_legal_document(
             cursor.execute(
                 """
                 UPDATE rti.legal_documents
-                SET status='verified', updated_at=now(), last_error_code=NULL
+                SET status='verified',
+                    review_note=%s,
+                    verified_at=now(),
+                    updated_at=now(),
+                    last_error_code=NULL
                 WHERE id=%s
                 """,
-                (document_id,),
+                (payload.review_note, document_id),
             )
             cursor.execute(
                 """
