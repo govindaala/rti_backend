@@ -20,7 +20,7 @@ STOP = Event()
 
 def _retry_delay_seconds(attempts: int) -> int:
     """बार-बार विफल स्रोतों पर exponential backoff लागू करें."""
-    return min(30 * (2 ** max(attempts - 1, 0)), 1800)
+    return min(30 * (2 ** min(max(attempts - 1, 0), 6)), 1800)
 
 
 def _is_retryable_error(error: Exception) -> bool:
@@ -215,12 +215,31 @@ def process_one() -> bool:
                      content_type, extracted_text, content_sha256, page_count, status)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'review_required')
                 ON CONFLICT (canonical_url) DO UPDATE SET
+                    source_id=EXCLUDED.source_id,
+                    job_id=EXCLUDED.job_id,
                     title=EXCLUDED.title,
                     extracted_text=EXCLUDED.extracted_text,
-                    content_sha256=EXCLUDED.content_sha256,
                     content_type=EXCLUDED.content_type,
                     page_count=EXCLUDED.page_count,
-                    status='review_required',
+                    status=CASE
+                        WHEN rti.legal_documents.content_sha256
+                             IS DISTINCT FROM EXCLUDED.content_sha256
+                        THEN 'review_required'
+                        ELSE rti.legal_documents.status
+                    END,
+                    review_note=CASE
+                        WHEN rti.legal_documents.content_sha256
+                             IS DISTINCT FROM EXCLUDED.content_sha256
+                        THEN NULL
+                        ELSE rti.legal_documents.review_note
+                    END,
+                    verified_at=CASE
+                        WHEN rti.legal_documents.content_sha256
+                             IS DISTINCT FROM EXCLUDED.content_sha256
+                        THEN NULL
+                        ELSE rti.legal_documents.verified_at
+                    END,
+                    content_sha256=EXCLUDED.content_sha256,
                     updated_at=now()
                 """,
                 (
