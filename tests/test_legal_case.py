@@ -53,13 +53,35 @@ def test_unknown_citation_reference_is_rejected() -> None:
         LegalCase.model_validate(data)
 
 
-def test_verified_case_requires_verified_source() -> None:
-    """स्रोत सत्यापित न हो तो केस को verified घोषित न किया जा सके."""
+def test_issue_without_citation_is_rejected() -> None:
+    """हर कानूनी मुद्दे के साथ कम-से-कम एक source reference अनिवार्य हो."""
     data = sample_case()
-    data["verification_status"] = VerificationStatus.VERIFIED.value
+    data["issues"][0]["citation_ids"] = []
 
     with pytest.raises(ValidationError):
         LegalCase.model_validate(data)
+
+
+def test_duplicate_citation_id_is_rejected() -> None:
+    """एक ही केस में citation IDs अद्वितीय होने चाहिए."""
+    data = sample_case()
+    data["citations"].append(dict(data["citations"][0]))
+
+    with pytest.raises(ValidationError):
+        LegalCase.model_validate(data)
+
+
+def test_verified_case_requires_every_referenced_source_verified() -> None:
+    """verified केस के हर issue में प्रयुक्त सभी citations verified हों."""
+    data = sample_case()
+    data["verification_status"] = VerificationStatus.VERIFIED.value
+    data["citations"][0]["verified"] = False
+
+    with pytest.raises(ValidationError):
+        LegalCase.model_validate(data)
+
+    data["citations"][0]["verified"] = True
+    assert LegalCase.model_validate(data).verification_status == VerificationStatus.VERIFIED
 
 
 def test_role_guidance_is_distinct_but_has_shared_rules() -> None:
