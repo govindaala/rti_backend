@@ -3,9 +3,9 @@ name: Backend CI
 
 on:
   push:
-    branches: ["main", "feature/legal-source-crawler-foundation"]
+    branches: ["main", "feature/legal-source-crawler-foundation", "feature/legal-research-and-drafting-core"]
   pull_request:
-    branches: ["main", "feature/supabase-postgres-integration"]
+    branches: ["main", "feature/supabase-postgres-integration", "feature/legal-source-crawler-foundation"]
 
 permissions:
   contents: read
