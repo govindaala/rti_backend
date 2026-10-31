@@ -10,11 +10,13 @@ class Settings:
     """संवेदनशील मान केवल hosting environment में रखें."""
 
     app_name: str = os.getenv("APP_NAME", "RTI Intelligence Platform API")
-    app_env: str = os.getenv("APP_ENV", "development")
+    app_env: str = os.getenv("APP_ENV", "production")
     api_v1_prefix: str = os.getenv("API_V1_PREFIX", "/api/v1")
     database_url: str | None = os.getenv("DATABASE_URL")
     database_connect_timeout: int = int(os.getenv("DATABASE_CONNECT_TIMEOUT", "5"))
-    admin_api_token: str | None = os.getenv("ADMIN_API_TOKEN")
+    admin_id: str | None = os.getenv("ADMIN_ID")
+    admin_pass: str | None = os.getenv("ADMIN_PASS")
+    admin_session_secret: str | None = os.getenv("ADMIN_SESSION_SECRET")
     crawler_timeout_seconds: int = int(os.getenv("CRAWLER_TIMEOUT_SECONDS", "20"))
     crawler_max_bytes: int = int(os.getenv("CRAWLER_MAX_BYTES", "12000000"))
     crawler_poll_seconds: int = int(os.getenv("CRAWLER_POLL_SECONDS", "2"))
