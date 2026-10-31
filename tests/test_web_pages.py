@@ -1,8 +1,8 @@
 # रिपॉजिटरी पथ: rti_backend/tests/test_web_pages.py
 """एक ही FastAPI सेवा से user और admin UI serve होने की जाँच."""
 
-from app.main import app
 from fastapi.testclient import TestClient
+from app.main import app
 
 
 client = TestClient(app)
