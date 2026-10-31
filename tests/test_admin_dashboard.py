@@ -44,3 +44,20 @@ def test_source_submission_rejects_non_official_domain(monkeypatch) -> None:
         json={"url": "https://example.com/"},
     )
     assert response.status_code == 422
+
+
+def test_document_verification_requires_admin_token(monkeypatch) -> None:
+    """मानव verification endpoint privileged token के बिना उपलब्ध न हो."""
+    monkeypatch.setattr(
+        admin_routes,
+        "settings",
+        replace(admin_routes.settings, admin_api_token="test-secret"),
+    )
+    response = client.post(
+        "/api/v1/admin/documents/00000000-0000-0000-0000-000000000001/verify",
+        json={
+            "review_note": "मूल आदेश और वर्तमान स्थिति की समीक्षा की गई है।",
+            "confirm_reviewed": True,
+        },
+    )
+    assert response.status_code == 401
