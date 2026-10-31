@@ -18,12 +18,12 @@ USER_AGENT = "RTI-ResearchBot/0.1 (+respectful public legal research)"
 def extract_html_text(html: str) -> str:
     """HTML से script/style हटाकर whitespace-normalized plain text निकालें."""
     without_active_content = re.sub(
-        r"(?is)<(script|style|noscript)\\b[^>]*>.*?</\\1\\s*>",
+        r"(?is)<(script|style|noscript)\b[^>]*>.*?</\1\s*>",
         " ",
         html,
     )
     without_tags = re.sub(r"(?s)<[^>]+>", " ", without_active_content)
-    return unescape(re.sub(r"\\s+", " ", without_tags)).strip()
+    return unescape(re.sub(r"\s+", " ", without_tags)).strip()
 
 
 def _safe_url(url: str) -> str:
@@ -66,7 +66,7 @@ def fetch_document(
     raw = bytes(body)
     if content_type == "application/pdf":
         reader = PdfReader(io.BytesIO(raw), strict=False)
-        text = "\\n".join(page.extract_text() or "" for page in reader.pages)
+        text = "\n".join(page.extract_text() or "" for page in reader.pages)
         pages = len(reader.pages)
         kind = "pdf"
     else:
