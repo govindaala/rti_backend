@@ -5,6 +5,7 @@ import argparse
 import logging
 import sys
 
+from app.core.config import settings
 from app.core.database import get_connection
 from app.services.crawler import fetch_document
 
@@ -39,14 +40,23 @@ def process_one() -> bool:
             """,
             (job_id,),
         )
-        cursor.execute("UPDATE rti.research_sources SET status='discovering', updated_at=now() WHERE id=%s",
-                       (source_id,))
         cursor.execute(
-            "INSERT INTO rti.crawl_job_events(job_id,event_type,message) VALUES(%s,'started','Worker started source fetch')",
+            "UPDATE rti.research_sources SET status='discovering', updated_at=now() WHERE id=%s",
+            (source_id,),
+        )
+        cursor.execute(
+            """
+            INSERT INTO rti.crawl_job_events(job_id,event_type,message)
+            VALUES(%s,'started','Worker started source fetch')
+            """,
             (job_id,),
         )
     try:
-        result = fetch_document(url)
+        result = fetch_document(
+            url,
+            timeout_seconds=settings.crawler_timeout_seconds,
+            max_bytes=settings.crawler_max_bytes,
+        )
         with get_connection() as connection, connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -62,10 +72,17 @@ def process_one() -> bool:
                     status='review_required',
                     updated_at=now()
                 """,
-                (source_id, job_id, result["final_url"], result["final_url"],
-                 "other" if result["document_type"] == "html" else "unknown",
-                 result["content_type"], result["text"], result["content_sha256"],
-                 result["page_count"]),
+                (
+                    source_id,
+                    job_id,
+                    result["final_url"],
+                    result["final_url"],
+                    "other" if result["document_type"] == "html" else "unknown",
+                    result["content_type"],
+                    result["text"],
+                    result["content_sha256"],
+                    result["page_count"],
+                ),
             )
             cursor.execute(
                 """
@@ -75,16 +92,20 @@ def process_one() -> bool:
                 """,
                 (job_id,),
             )
-            cursor.execute("UPDATE rti.research_sources SET status='completed', updated_at=now() WHERE id=%s",
-                           (source_id,))
             cursor.execute(
-                "INSERT INTO rti.crawl_job_events(job_id,event_type,message) VALUES(%s,'completed','Document extracted; awaiting human legal verification')",
+                "UPDATE rti.research_sources SET status='completed', updated_at=now() WHERE id=%s",
+                (source_id,),
+            )
+            cursor.execute(
+                """
+                INSERT INTO rti.crawl_job_events(job_id,event_type,message)
+                VALUES(%s,'completed','Document extracted; awaiting human legal verification')
+                """,
                 (job_id,),
             )
         LOGGER.info("Completed crawl job %s", job_id)
         return True
-    except Exception as exc:
-        # Raw exception is logged server-side; API responses never expose it.
+    except Exception:
         LOGGER.exception("Crawl job %s failed", job_id)
         with get_connection() as connection, connection.cursor() as cursor:
             cursor.execute(
@@ -97,11 +118,18 @@ def process_one() -> bool:
                 (job_id,),
             )
             cursor.execute(
-                "UPDATE rti.research_sources SET status='failed', last_error_code='FETCH_OR_EXTRACTION_FAILED', updated_at=now() WHERE id=%s",
+                """
+                UPDATE rti.research_sources
+                SET status='failed', last_error_code='FETCH_OR_EXTRACTION_FAILED', updated_at=now()
+                WHERE id=%s
+                """,
                 (source_id,),
             )
             cursor.execute(
-                "INSERT INTO rti.crawl_job_events(job_id,event_type,message) VALUES(%s,'failed','Fetch or extraction failed; inspect private server logs')",
+                """
+                INSERT INTO rti.crawl_job_events(job_id,event_type,message)
+                VALUES(%s,'failed','Fetch or extraction failed; inspect private server logs')
+                """,
                 (job_id,),
             )
         return True
