@@ -56,6 +56,10 @@ The `rti` schema is private to the server-side database role. Do not grant
 denies those roles schema usage and table access. RLS remains enabled as
 defense in depth.
 
+The first historical migration (`20261031061604`) drops a set of legacy `public`
+objects. It is retained to match the already-applied project history; review that
+file before applying the complete migration chain to any other existing project.
+
 ## Continuous official-source crawler
 - Admin में allowlisted HTTPS सरकारी/न्यायिक URL डालें और server-side `ADMIN_API_TOKEN` से approve करें।
 - Source और job PostgreSQL में persist होते हैं; browser बंद होने पर भी queue सुरक्षित रहती है।
