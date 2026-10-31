@@ -26,25 +26,20 @@ API दस्तावेज़: `http://127.0.0.1:8000/docs`
 
 ## सुरक्षा
 वास्तविक API keys, पासवर्ड या उपयोगकर्ता दस्तावेज़ GitHub में commit न करें।
-## Firestore कानूनी केस संग्रह
+## अपना SQLite कानूनी केस संग्रह
 
-इस चरण में Firestore repository adapter जोड़ा गया है। यह अभी API से सार्वजनिक रूप से write-enabled नहीं है; authentication और authorization लागू होने से पहले कोई खुला write endpoint नहीं दिया जाएगा।
+कानूनी केस और citation metadata के लिए Python के built-in `sqlite3` से स्थानीय database file उपयोग होती है। कोई Firebase, Firestore या hosted database API आवश्यक नहीं है।
 
-### आवश्यक सेटिंग
-
-- Google Cloud में Firestore database बनाएँ।
-- Runtime को न्यूनतम आवश्यक Firestore permissions वाला service account दें।
-- `FIRESTORE_PROJECT_ID` environment variable सेट करें।
-- Local development में Application Default Credentials या Firestore Emulator configure करें।
-- `.env.example` में केवल project ID का placeholder है; credentials या private keys GitHub पर commit न करें।
-
-### संग्रह संरचना
-
-- Collection: `legal_cases`
-- Document ID: `case_id`
-- Document fields: forum, case title, decision date, issue-wise findings, citations और verification status।
+- Database file ऐप के अपने runtime/storage में बनेगी।
+- Collection/table: `legal_cases`
+- Primary key: `case_id`
 - Duplicate `case_id` पर मौजूदा रिकॉर्ड overwrite नहीं होगा।
+- Database file और उपयोगकर्ता डेटा को GitHub में commit नहीं करना है।
 
-### वर्तमान सीमा
+## बाहरी API निर्भरता नीति
 
-Repository adapter और उसके isolated tests तैयार हैं। वास्तविक Firestore project, credentials, database rules और cloud connection अभी configure नहीं किए गए हैं। सरकारी domain पहचानना स्रोत के पृष्ठ या निर्णय की सामग्री को सत्यापित करने के बराबर नहीं है।
+इस backend में किसी बाहरी AI-provider API या third-party database API को जोड़ना स्वीकार्य नहीं है। कानूनी स्रोतों के लिए सरकारी वेबसाइटों के सार्वजनिक पृष्ठों को अपने लिखे हुए fetcher/parser से पढ़ा जाएगा; किसी vendor search API पर निर्भरता नहीं होगी। AI inference को भी अपने नियंत्रित runtime में चलाने की अलग engineering आवश्यकता है।
+
+## वर्तमान सीमा
+
+SQLite repository adapter और tests तैयार किए जा रहे हैं। Cloud hosting, durable storage/backup, authentication, crawler, OCR और स्वयं-होस्टेड model runtime अभी अलग-अलग चरण हैं। सरकारी domain पहचानना کسی صفحے یا فیصلے की सामग्री को सत्यापित करने के बराबर नहीं है।
