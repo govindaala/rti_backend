@@ -132,6 +132,12 @@ def recover_stale_jobs(stale_after_seconds: int = 300) -> int:
                             SELECT 1 FROM rti.crawl_jobs AS job
                             WHERE job.source_id = source.id
                               AND job.status IN ('queued', 'running')
+                              AND NOT EXISTS (
+                                  SELECT 1 FROM recovered AS item WHERE item.id = job.id
+                              )
+                        ) OR EXISTS (
+                            SELECT 1 FROM recovered AS item
+                            WHERE item.source_id = source.id AND item.status = 'queued'
                         ) THEN 'discovering'
                         ELSE 'failed'
                     END,
@@ -262,7 +268,8 @@ def process_one() -> bool:
                 """
                 UPDATE rti.crawl_jobs SET status='completed',
                     discovered_count=%s, processed_count=1, failed_count=0,
-                    heartbeat_at=now(), finished_at=now(), updated_at=now()
+                    last_error_code=NULL, heartbeat_at=now(),
+                    finished_at=now(), updated_at=now()
                 WHERE id=%s
                 """,
                 (queued_links, job_id),
@@ -286,10 +293,12 @@ def process_one() -> bool:
                 """
                 UPDATE rti.research_sources
                 SET status=%s,
+                    last_error_code=CASE WHEN %s='completed' THEN NULL ELSE last_error_code END,
                     updated_at=CASE WHEN %s='completed' THEN now() ELSE updated_at END
                 WHERE id=%s
                 """,
                 (
+                    "discovering" if pending else "completed",
                     "discovering" if pending else "completed",
                     "discovering" if pending else "completed",
                     source_id,
