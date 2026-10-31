@@ -117,19 +117,24 @@ def _robots_allows(url: str, timeout_seconds: int) -> bool:
     parsed = urlsplit(url)
     robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
     try:
-        response = httpx.get(
-            robots_url,
+        # robots.txt को भी सीमित आकार में पढ़ें; policy fetch विफल हो तो fail closed.
+        body = bytearray()
+        with httpx.Client(
             timeout=min(timeout_seconds, 8),
             follow_redirects=False,
             headers={"User-Agent": USER_AGENT},
-        )
-        if response.status_code in (404, 410):
-            return True
-        if response.status_code != 200:
-            return False
+        ) as client, client.stream("GET", robots_url) as response:
+            if response.status_code in (404, 410):
+                return True
+            if response.status_code != 200:
+                return False
+            for chunk in response.iter_bytes():
+                body.extend(chunk)
+                if len(body) > 256_000:
+                    return False
         parser = RobotFileParser()
         parser.set_url(robots_url)
-        parser.parse(response.text.splitlines())
+        parser.parse(bytes(body).decode("utf-8", errors="replace").splitlines())
         return parser.can_fetch(USER_AGENT, url)
     except httpx.HTTPError:
         return False
@@ -168,8 +173,10 @@ def fetch_document(
     raw = bytes(body)
     if content_type == "application/pdf":
         reader = PdfReader(io.BytesIO(raw), strict=False)
-        text = "\n".join(page.extract_text() or "" for page in reader.pages)
         pages = len(reader.pages)
+        if pages > 500:
+            raise ValueError("PDF exceeds the 500-page extraction limit")
+        text = "\n".join(page.extract_text() or "" for page in reader.pages)
         kind = "pdf"
         title = (reader.metadata.title if reader.metadata else None) or safe_url.rsplit("/", 1)[-1]
     else:
