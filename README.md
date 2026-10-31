@@ -11,52 +11,69 @@
 
 ## Local run
 Python 3.11+
-```bash
+\`\`\`bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 uvicorn app.main:app --reload
-```
+\`\`\`
 
-## Endpoints
-- `GET /api/v1/health`
-- `GET /api/v1/health/database`
-- `GET /api/v1/admin/dashboard` — सार्वजनिक, केवल aggregate/read-only
-- `POST /api/v1/admin/sources` — `X-Admin-Token` आवश्यक
-- `POST /api/v1/research/search` — केवल `verified` कानूनी दस्तावेज़ों में खोज
-- `POST /api/v1/analysis/checklist` — Applicant/PIO के लिए नियम-आधारित प्रारंभिक checklist
-- `POST /api/v1/drafts/rti` — हिन्दी/English RTI आवेदन मसौदा; कोई auto-submit नहीं
-- `POST /api/v1/drafts/first-appeal` — धारा 19(1) के अंतर्गत प्रथम अपील मसौदा; कोई auto-submit नहीं
-- `GET /app` — user interface
-- `GET /admin` — password-free read-only dashboard
-- `GET /docs` — API schema
+## Live endpoints
+- \`GET /api/v1/health\`
+- \`GET /api/v1/health/database\`
+- \`GET /api/v1/admin/dashboard\` — live aggregate metrics और हाल की crawl activity
+- \`POST /api/v1/admin/sources\` — \`X-Admin-Token\` आवश्यक; source queue में डालता है
+- \`POST /api/v1/research/search\` — केवल \`verified\` कानूनी दस्तावेज़ों में खोज
+- \`POST /api/v1/analysis/checklist\` — Applicant/PIO के लिए नियम-आधारित प्रारंभिक checklist
+- \`POST /api/v1/drafts/rti\` — हिन्दी/English RTI आवेदन मसौदा; कोई auto-submit नहीं
+- \`POST /api/v1/drafts/first-appeal\` — धारा 19(1) के अंतर्गत प्रथम अपील मसौदा; कोई auto-submit नहीं
+- \`GET /app\` — user interface
+- \`GET /admin\` — live operations dashboard और token-protected source intake
+- \`GET /docs\` — API schema
 
 ## Supabase configuration
-Render/server environment में `DATABASE_URL` सेट करें। इसे GitHub, browser, chat या README में न रखें। पहले साझा किया गया database password अब सुरक्षित नहीं माना जाना चाहिए; इस्तेमाल से पहले Supabase में rotate करें। न्यूनतम अधिकार वाला database role उपयोग करें। `rti` schema private रहे और service credentials browser में न जाएँ।
+Render/server environment में \`DATABASE_URL\` सेट करें। इसे GitHub, browser, chat या README में न रखें। पहले साझा किया गया database password अब सुरक्षित नहीं माना जाना चाहिए; इस्तेमाल से पहले Supabase में rotate करें। न्यूनतम अधिकार वाला database role उपयोग करें। \`rti\` schema private रहे और service credentials browser में न जाएँ।
 
-## Source crawler
-स्रोत intake केवल allowlisted HTTPS सरकारी/न्यायिक domains स्वीकार करता है। Redirect स्वतः follow नहीं होते; custom ports और URL credentials अस्वीकार हैं। Fetch आकार और timeout सीमित हैं। HTML/PDF से text निकाला जाता है और SHA-256 hash रखा जाता है। निकाला हुआ text `review_required` स्थिति में रहता है—स्वतः verified नहीं होता।
+मौजूदा Supabase project में \`rti.research_sources\`, \`rti.crawl_jobs\`, \`rti.legal_documents\` और crawl event tables मौजूद हैं; worker इन्हीं tables को durable queue और document store की तरह उपयोग करता है। कोई नया migration इस PR में लागू नहीं होता।
 
-Queue worker one-shot है:
-```bash
+## Continuous official-source crawler
+- Admin में allowlisted HTTPS सरकारी/न्यायिक URL डालें और server-side \`ADMIN_API_TOKEN\` से approve करें।
+- Source और job PostgreSQL में persist होते हैं; browser बंद होने पर भी queue सुरक्षित रहती है।
+- Worker queue से jobs claim करता है, \`robots.txt\` का पालन करता है, redirects/custom ports/credentials अस्वीकार करता है और केवल उसी host के legal-path/PDF links discover करता है।
+- Per page अधिकतम 25 candidate links और per source अधिकतम 250 jobs की सीमा है; fetch timeout और byte size सीमित हैं।
+- PDF/HTML text, title, source URL और SHA-256 hash database में सुरक्षित होते हैं। Document type केवल preliminary URL/title classification है।
+- हर नया दस्तावेज़ \`review_required\` में रहता है। यह स्वतः verified नहीं होता और legal research API में तब तक उपलब्ध नहीं होगा जब तक authorized reviewer उसे verify न करे।
+- Login walls, CAPTCHA, robots disallow, paywalls या technical access controls को bypass नहीं किया जाता। External links और non-allowlisted domains crawl नहीं होते।
+
+### Continuous worker
+Local one-shot:
+\`\`\`bash
 python -m app.worker --once
-python -m app.worker --drain
-```
-Render Free web service अपने-आप लगातार worker नहीं चलाती और idle होने पर sleep करती है। इसीलिए queue intake और worker execution अलग हैं। निरंतर background processing के लिए अलग worker/cron runtime और बजट/hosting निर्णय चाहिए।
+\`\`\`
+Continuous polling:
+\`\`\`bash
+python -m app.worker --poll
+\`\`\`
+Worker SIGTERM/SIGINT पर नया job लेना रोकता है और चल रहा job पूरा होने के बाद बंद होता है।
+
+### Render deployment requirement
+\`render.yaml\` में अलग Render Background Worker परिभाषित है। इसे deploy करने पर Render Starter compute plan वाला अलग worker resource बनेगा और recurring paid compute charge लगेगा। मौजूदा account में backend web service Free plan पर है; वह idle होने पर sleep करती है और उसे 24×7 worker नहीं माना जा सकता। Render की service-type documentation के अनुसार always-on queue consumer के लिए Background Worker उपयुक्त है। Worker के लिए \`DATABASE_URL\` और web service के लिए \`DATABASE_URL\` तथा \`ADMIN_API_TOKEN\` configure करें। Secrets केवल Render Environment में रखें।
+
+**अभी worker deployed नहीं है।** Blueprint को GitHub में merge/push और Render में sync/deploy करने के बाद ही 24×7 execution शुरू होगा। इस PR को merge करना या paid service create करना अपने-आप नहीं किया गया है।
 
 ## Admin security
-Dashboard बिना password के केवल aggregate counts दिखाता है। Source submission और अन्य privileged actions के लिए `ADMIN_API_TOKEN` server-side environment variable आवश्यक है। Token को browser code या repository में न रखें।
+Dashboard बिना token के केवल public aggregate आँकड़े और public document metadata दिखाता है। Source submission के लिए \`ADMIN_API_TOKEN\` आवश्यक है। Token केवल request header में भेजा जाता है, browser storage में save नहीं होता। Production में HTTPS और मजबूत random token अनिवार्य हैं।
 
 ## परीक्षण
-```bash
+\`\`\`bash
 ruff check app tests
 pytest
-```
+\`\`\`
 
-## नई शोध और ड्राफ्ट सुविधाएँ
-- Research API केवल `rti.legal_documents.status = 'verified'` वाले दस्तावेज़ों को लौटाती है; pending/review_required crawler output कभी कानूनी प्रमाण के रूप में नहीं दिखता। अभी खोज exact phrase substring आधारित है, semantic/vector search नहीं।
+## शोध और ड्राफ्ट सुविधाएँ
+- Research API केवल \`rti.legal_documents.status = 'verified'\` वाले दस्तावेज़ों को लौटाती है; pending/review_required crawler output कभी कानूनी प्रमाण के रूप में नहीं दिखता। अभी खोज exact phrase substring आधारित है, semantic/vector search नहीं।
 - Analysis checklist Applicant और PIO के लिए अलग जाँच-बिंदु देती है, पर यह AI inference या अंतिम कानूनी राय नहीं है।
 - RTI draft API हिन्दी/English मसौदा बनाती है। मसौदा database में save या किसी सरकारी portal पर submit नहीं होता। उपयोगकर्ता को लागू केंद्र/राज्य नियम, शुल्क और सही प्राधिकरण जाँचना होगा।
 
-## अभी क्या शामिल नहीं है
-पूर्ण login/session/role system, user/subscription management, case-law content verification UI, scanned PDF OCR, recursive multi-page crawling, semantic/vector search, स्व-नियंत्रित AI inference/training runtime, पूर्ण audit/consent workflow, backups/restore drills और production worker orchestration अभी शामिल नहीं हैं। इनका झूठा दावा नहीं किया जाता।
+## अभी शेष प्रमुख कार्य
+पूर्ण authentication/session/role system, audited legal verification/review UI, OCR for scanned PDFs, richer court/tribunal discovery adapters, semantic/vector search, in-house AI inference and citation-grounded judgment analysis, consent/privacy workflow, immutable audit log, backups/restore drills, monitoring/alerts, and production load/security testing.
