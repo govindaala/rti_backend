@@ -1,5 +1,5 @@
 # रिपॉजिटरी पथ: rti_backend/app/core/config.py
-"""ऐप की कॉन्फ़िगरेशन को environment variables से पढ़ें."""
+"""ऐप की कॉन्फ़िगरेशन environment variables से पढ़ें."""
 
 import os
 from dataclasses import dataclass
@@ -7,14 +7,16 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Settings:
-    """ऐप की आवश्यक सेटिंग्स; संवेदनशील मान source code में न रखें."""
+    """संवेदनशील मान केवल hosting environment में रखें."""
 
     app_name: str = os.getenv("APP_NAME", "RTI Intelligence Platform API")
     app_env: str = os.getenv("APP_ENV", "development")
     api_v1_prefix: str = os.getenv("API_V1_PREFIX", "/api/v1")
     database_url: str | None = os.getenv("DATABASE_URL")
     database_connect_timeout: int = int(os.getenv("DATABASE_CONNECT_TIMEOUT", "5"))
+    admin_api_token: str | None = os.getenv("ADMIN_API_TOKEN")
+    crawler_timeout_seconds: int = int(os.getenv("CRAWLER_TIMEOUT_SECONDS", "20"))
+    crawler_max_bytes: int = int(os.getenv("CRAWLER_MAX_BYTES", "12000000"))
 
 
-# पूरे ऐप में एक ही immutable configuration उपयोग करें।
 settings = Settings()
