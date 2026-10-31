@@ -1,6 +1,7 @@
 # रिपॉजिटरी पथ: rti_backend/app/main.py
 """RTI Backend का FastAPI प्रवेश बिंदु."""
 
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -15,6 +16,19 @@ from app.api.routes.database import router as database_router
 from app.api.routes.health import router as health_router
 from app.api.routes.legal_cases import router as legal_cases_router
 from app.core.config import settings
+
+logger = logging.getLogger("rti.admin_config")
+logger.info(
+    "Admin runtime configuration: ADMIN_ID configured=%s bytes=%d; "
+    "ADMIN_PASS configured=%s bytes=%d; "
+    "ADMIN_SESSION_SECRET configured=%s bytes=%d",
+    bool(settings.admin_id),
+    len((settings.admin_id or "").encode("utf-8")),
+    bool(settings.admin_pass),
+    len((settings.admin_pass or "").encode("utf-8")),
+    bool(settings.admin_session_secret),
+    len((settings.admin_session_secret or "").encode("utf-8")),
+)
 
 app = FastAPI(
     title=settings.app_name,
