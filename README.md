@@ -40,7 +40,7 @@ Render/server environment में \`DATABASE_URL\` सेट करें। �
 - Admin में allowlisted HTTPS सरकारी/न्यायिक URL डालें और server-side \`ADMIN_API_TOKEN\` से approve करें।
 - Source और job PostgreSQL में persist होते हैं; browser बंद होने पर भी queue सुरक्षित रहती है।
 - Worker queue से jobs claim करता है, \`robots.txt\` का पालन करता है, redirects/custom ports/credentials अस्वीकार करता है और केवल उसी host के legal-path/PDF links discover करता है।
-- Per page अधिकतम 25 candidate links और per source अधिकतम 250 jobs की सीमा है; fetch timeout और byte size सीमित हैं।
+- Per page अधिकतम 25 candidate links और प्रति crawl cycle प्रति source अधिकतम 250 jobs की सीमा है; fetch timeout और byte size सीमित हैं।
 - PDF/HTML text, title, source URL और SHA-256 hash database में सुरक्षित होते हैं। Document type केवल preliminary URL/title classification है।
 - हर नया दस्तावेज़ \`review_required\` में रहता है। यह स्वतः verified नहीं होता और legal research API में तब तक उपलब्ध नहीं होगा जब तक authorized reviewer उसे verify न करे।
 - Login walls, CAPTCHA, robots disallow, paywalls या technical access controls को bypass नहीं किया जाता। External links और non-allowlisted domains crawl नहीं होते।
