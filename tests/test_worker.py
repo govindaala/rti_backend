@@ -56,3 +56,53 @@ def test_retry_policy_only_retries_transient_failures() -> None:
         httpx.HTTPStatusError("not found", request=request, response=permanent)
     )
     assert not worker._is_retryable_error(ValueError("unsupported type"))
+
+
+def test_retry_delay_uses_bounded_exponential_backoff() -> None:
+    """Transient failures को bounded delay मिले; retry storm न बने."""
+    assert worker._retry_delay_seconds(1) == 30
+    assert worker._retry_delay_seconds(2) == 60
+    assert worker._retry_delay_seconds(3) == 120
+    assert worker._retry_delay_seconds(20) == 1800
+
+
+def test_recover_stale_jobs_uses_database_lease_timeout(monkeypatch) -> None:
+    """Worker crash के बाद stale running jobs की recovery query execute हो."""
+    class FakeCursor:
+        def __init__(self) -> None:
+            self.query = ""
+            self.params = None
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def execute(self, query, params=None) -> None:
+            self.query = query
+            self.params = params
+
+        def fetchone(self):
+            return (2,)
+
+    class FakeConnection:
+        def __init__(self) -> None:
+            self.fake_cursor = FakeCursor()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def cursor(self):
+            return self.fake_cursor
+
+    connection = FakeConnection()
+    monkeypatch.setattr(worker, "get_connection", lambda: connection)
+
+    assert worker.recover_stale_jobs(stale_after_seconds=90) == 2
+    assert connection.fake_cursor.params == (90,)
+    assert "WORKER_LEASE_EXPIRED" in connection.fake_cursor.query
+    assert "status = 'running'" in connection.fake_cursor.query
