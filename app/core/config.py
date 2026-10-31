@@ -21,6 +21,7 @@ class Settings:
     crawler_idle_seconds: int = int(os.getenv("CRAWLER_IDLE_SECONDS", "10"))
     crawler_links_per_page: int = int(os.getenv("CRAWLER_LINKS_PER_PAGE", "25"))
     crawler_max_pages_per_source: int = int(os.getenv("CRAWLER_MAX_PAGES_PER_SOURCE", "250"))
+    crawler_recrawl_hours: int = int(os.getenv("CRAWLER_RECRAWL_HOURS", "24"))
 
 
 settings = Settings()
