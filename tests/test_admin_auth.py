@@ -48,7 +48,9 @@ def test_signed_session_round_trip(monkeypatch):
 def test_tampered_cookie_is_rejected(monkeypatch):
     monkeypatch.setattr(admin_auth, "settings", configured_settings())
     token, _ = admin_auth.create_session()
-    tampered = token[:-1] + ("A" if token[-1] != "A" else "B")
+    body, signature = token.split(".", 1)
+    changed_body = ("A" if body[0] != "A" else "B") + body[1:]
+    tampered = changed_body + "." + signature
 
     with pytest.raises(HTTPException) as error:
         admin_auth.read_session(request_with_cookie(tampered))
