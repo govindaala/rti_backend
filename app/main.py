@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.api.routes.database import router as database_router
 from app.api.routes.health import router as health_router
 from app.api.routes.legal_cases import router as legal_cases_router
 from app.core.config import settings
@@ -22,6 +23,7 @@ app = FastAPI(
 
 # सभी संस्करणित API endpoints को एक साझा prefix के अंतर्गत रखें।
 app.include_router(health_router, prefix=settings.api_v1_prefix)
+app.include_router(database_router, prefix=settings.api_v1_prefix)
 app.include_router(legal_cases_router, prefix=settings.api_v1_prefix)
 
 # वेब UI को इसी रिपॉजिटरी से serve करें; कोई अलग frontend service आवश्यक नहीं।
@@ -47,5 +49,6 @@ def root() -> dict[str, str]:
     return {
         "message": "RTI Intelligence Platform Backend",
         "health_endpoint": f"{settings.api_v1_prefix}/health",
+        "database_health_endpoint": f"{settings.api_v1_prefix}/health/database",
         "docs_endpoint": "/docs",
     }
