@@ -6,6 +6,7 @@ from dataclasses import replace
 from fastapi.testclient import TestClient
 
 from app.api.routes import admin as admin_routes
+from app.core import admin_auth
 from app.main import app
 
 client = TestClient(app, base_url="https://testserver")
@@ -13,16 +14,18 @@ client = TestClient(app, base_url="https://testserver")
 
 def configured_admin(monkeypatch):
     client.cookies.clear()
+    configured = replace(
+        admin_routes.settings,
+        admin_id="root",
+        admin_pass="test-password",
+        admin_session_secret="x" * 48,
+        database_url=None,
+    )
+    monkeypatch.setattr(admin_auth, "settings", configured)
     monkeypatch.setattr(
         admin_routes,
         "settings",
-        replace(
-            admin_routes.settings,
-            admin_id="root",
-            admin_pass="test-password",
-            admin_session_secret="x" * 48,
-            database_url=None,
-        ),
+        configured,
     )
 
 
