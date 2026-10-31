@@ -97,6 +97,7 @@ pytest
 ## शोध और ड्राफ्ट सुविधाएँ
 - Research API केवल `rti.legal_documents.status = 'verified'` वाले दस्तावेज़ों को लौटाती है; pending/review_required crawler output कभी कानूनी प्रमाण के रूप में नहीं दिखता। अभी खोज exact phrase substring आधारित है, semantic/vector search नहीं।
 - Analysis checklist Applicant और PIO के लिए अलग जाँच-बिंदु देती है, पर यह AI inference या अंतिम कानूनी राय नहीं है।
+- `/app` में Applicant form अब `/api/v1/analysis/checklist` से जुड़ा है और checklist हिन्दी, English तथा Hinglish में दिखती है। यह नियम-आधारित checklist है, AI judgment analysis नहीं। File upload बंद है; PIO subscription/payment और login अभी सक्रिय नहीं हैं।
 - RTI draft API हिन्दी/English मसौदा बनाती है। मसौदा database में save या किसी सरकारी portal पर submit नहीं होता। उपयोगकर्ता को लागू केंद्र/राज्य नियम, शुल्क और सही प्राधिकरण जाँचना होगा।
 
 ## अभी शेष प्रमुख कार्य
