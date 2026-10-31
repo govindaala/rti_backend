@@ -27,3 +27,5 @@ services:
         value: "25"
       - key: CRAWLER_MAX_PAGES_PER_SOURCE
         value: "250"
+      - key: CRAWLER_RECRAWL_HOURS
+        value: "24"
