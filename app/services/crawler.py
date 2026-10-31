@@ -74,6 +74,22 @@ def discover_legal_links(html: str, base_url: str, limit: int = 25) -> list[str]
     return results
 
 
+def classify_document_type(url: str, title: str, text: str = "") -> str:
+    """URL/title hints से document type का preliminary label दें."""
+    sample = f"{url} {title}".lower()
+    if "judgment" in sample or "judgement" in sample or "निर्णय" in sample:
+        return "judgment"
+    if "order" in sample or "आदेश" in sample:
+        return "order"
+    if "circular" in sample or "परिपत्र" in sample:
+        return "circular"
+    if "notification" in sample or "gazette" in sample or "अधिसूचना" in sample:
+        return "notification"
+    if re.search(r"\\b(act|rules|regulation)\\b", sample):
+        return "other"
+    return "unknown"
+
+
 def _safe_url(url: str) -> str:
     """केवल HTTPS allowlisted hostname और सामान्य web ports स्वीकार करें."""
     parsed = urlsplit(url)
