@@ -17,8 +17,10 @@ OFFICIAL_DOMAIN_SUFFIXES = (
 
 def is_official_source_url(url: str) -> bool:
     """URL का hostname सरकारी/न्यायिक allowlist में है या नहीं जाँचें."""
-    hostname = (urlsplit(url).hostname or "").lower().rstrip(".")
-    if not hostname:
+    parsed = urlsplit(url)
+    hostname = (parsed.hostname or "").lower().rstrip(".")
+    # केवल HTTPS URL को आधिकारिक स्रोत की प्रारंभिक सूची में रखें।
+    if parsed.scheme.lower() != "https" or not hostname:
         return False
 
     # suffix match में मूल domain या उसका वास्तविक subdomain ही स्वीकारें।
