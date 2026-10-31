@@ -3,7 +3,7 @@
 
 import hashlib
 import re
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 import httpx
 from pypdf import PdfReader
@@ -55,9 +55,9 @@ def fetch_document(url: str, timeout_seconds: int = 20, max_bytes: int = 12_000_
         from html import unescape
 
         decoded = raw.decode("utf-8", errors="replace")
-        decoded = re.sub(r"(?is)<(script|style|noscript).*?>.*?</\\1>", " ", decoded)
+        decoded = re.sub(r"(?is)<(script|style|noscript).*?>.*?</\1>", " ", decoded)
         decoded = re.sub(r"(?s)<[^>]+>", " ", decoded)
-        text = unescape(re.sub(r"\\s+", " ", decoded)).strip()
+        text = unescape(re.sub(r"\s+", " ", decoded)).strip()
         pages = None
         kind = "html"
     return {
