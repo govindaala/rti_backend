@@ -6,13 +6,30 @@ from urllib.parse import urlsplit
 
 import psycopg
 from fastapi import APIRouter, Header, HTTPException, status
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, model_validator
 
 from app.core.config import settings
 from app.core.database import get_connection
 from app.services.source_registry import is_official_source_url
 
 router = APIRouter(tags=["प्रशासन"])
+
+
+class DocumentVerification(BaseModel):
+    """मानव reviewer द्वारा कानूनी दस्तावेज़ सत्यापन की पुष्टि."""
+
+    review_note: str = Field(min_length=20, max_length=1200)
+    confirm_reviewed: bool
+
+    @model_validator(mode="after")
+    def require_explicit_confirmation(self) -> "DocumentVerification":
+        """सिर्फ स्पष्ट reviewer confirmation पर document verified हो."""
+        if not self.confirm_reviewed:
+            raise ValueError("दस्तावेज़ की वास्तविक समीक्षा की पुष्टि आवश्यक है")
+        self.review_note = self.review_note.strip()
+        if len(self.review_note) < 20:
+            raise ValueError("समीक्षा टिप्पणी कम से कम 20 अक्षरों की होनी चाहिए")
+        return self
 
 
 class SourceSubmission(BaseModel):
@@ -66,7 +83,7 @@ def dashboard_summary() -> dict:
             ]
             cursor.execute(
                 """
-                SELECT id::text, title, canonical_url, document_type,
+                SELECT id::text, job_id::text, title, canonical_url, document_type,
                        status, created_at
                 FROM rti.legal_documents
                 ORDER BY created_at DESC LIMIT 10
@@ -74,9 +91,9 @@ def dashboard_summary() -> dict:
             )
             recent_documents = [
                 {
-                    "id": row[0], "title": row[1], "url": row[2],
-                    "type": row[3], "status": row[4],
-                    "created_at": row[5].isoformat(),
+                    "id": row[0], "job_id": row[1], "title": row[2], "url": row[3],
+                    "type": row[4], "status": row[5],
+                    "created_at": row[6].isoformat(),
                 }
                 for row in cursor.fetchall()
             ]
@@ -178,4 +195,70 @@ def submit_source(
         raise HTTPException(
             status_code=503,
             detail="Source queue is temporarily unavailable",
+        ) from exc
+
+
+
+@router.post(
+    "/admin/documents/{document_id}/verify",
+    summary="मानव समीक्षा के बाद कानूनी दस्तावेज़ verified करें",
+)
+def verify_legal_document(
+    document_id: str,
+    payload: DocumentVerification,
+    x_admin_token: str | None = Header(default=None),
+) -> dict:
+    """review_required दस्तावेज़ को स्पष्ट reviewer confirmation के बाद verified करें."""
+    _require_admin(x_admin_token)
+    try:
+        with get_connection() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT job_id, status, canonical_url
+                FROM rti.legal_documents
+                WHERE id=%s
+                FOR UPDATE
+                """,
+                (document_id,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="दस्तावेज़ नहीं मिला")
+            job_id, current_status, canonical_url = row
+            if current_status != "review_required":
+                raise HTTPException(
+                    status_code=409,
+                    detail="केवल review_required दस्तावेज़ को verified किया जा सकता है",
+                )
+            cursor.execute(
+                """
+                UPDATE rti.legal_documents
+                SET status='verified', updated_at=now(), last_error_code=NULL
+                WHERE id=%s
+                """,
+                (document_id,),
+            )
+            cursor.execute(
+                """
+                INSERT INTO rti.crawl_job_events(job_id,event_type,message)
+                VALUES(%s,'document_verified',%s)
+                """,
+                (
+                    job_id,
+                    f"Human reviewer verified document {document_id} ({canonical_url}): "
+                    f"{payload.review_note}",
+                ),
+            )
+        return {
+            "verified": True,
+            "document_id": document_id,
+            "status": "verified",
+            "notice": "मानव समीक्षा दर्ज हुई; दस्तावेज़ अब verified research search में उपलब्ध है।",
+        }
+    except HTTPException:
+        raise
+    except psycopg.Error as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Document review service is temporarily unavailable",
         ) from exc
