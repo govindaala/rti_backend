@@ -64,18 +64,33 @@ class LegalCase(BaseModel):
     @model_validator(mode="after")
     def validate_citation_integrity(self) -> "LegalCase":
         """सुनिश्चित करें कि हर issue का citation मौजूद और सही रिकॉर्ड में हो."""
-        citation_ids = {citation.citation_id for citation in self.citations}
+        citation_id_list = [citation.citation_id for citation in self.citations]
+        citation_ids = set(citation_id_list)
+        if len(citation_ids) != len(citation_id_list):
+            raise ValueError("citation_id दोहराया नहीं जा सकता")
 
+        citations_by_id = {citation.citation_id: citation for citation in self.citations}
         for issue in self.issues:
+            if not issue.citation_ids:
+                raise ValueError("हर कानूनी मुद्दे के साथ कम-से-कम एक citation आवश्यक है")
             missing_ids = set(issue.citation_ids) - citation_ids
             if missing_ids:
                 raise ValueError(
                     f"अज्ञात citation_id: {', '.join(sorted(missing_ids))}"
                 )
 
-        # सत्यापित केस में कम-से-कम एक सत्यापित मूल स्रोत अनिवार्य है।
+        # सत्यापित केस में प्रत्येक मुद्दे के सभी उद्धृत स्रोत सत्यापित होने चाहिए।
         if self.verification_status == VerificationStatus.VERIFIED:
-            if not any(citation.verified for citation in self.citations):
-                raise ValueError("सत्यापित केस के लिए सत्यापित citation आवश्यक है")
+            unverified_ids = {
+                citation_id
+                for issue in self.issues
+                for citation_id in issue.citation_ids
+                if not citations_by_id[citation_id].verified
+            }
+            if unverified_ids:
+                raise ValueError(
+                    "सत्यापित केस में सभी issue citations सत्यापित होने चाहिए: "
+                    + ", ".join(sorted(unverified_ids))
+                )
 
         return self
