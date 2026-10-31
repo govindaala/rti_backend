@@ -12,6 +12,8 @@ class Settings:
     app_name: str = os.getenv("APP_NAME", "RTI Intelligence Platform API")
     app_env: str = os.getenv("APP_ENV", "development")
     api_v1_prefix: str = os.getenv("API_V1_PREFIX", "/api/v1")
+    database_url: str | None = os.getenv("DATABASE_URL")
+    database_connect_timeout: int = int(os.getenv("DATABASE_CONNECT_TIMEOUT", "5"))
 
 
 # पूरे ऐप में एक ही immutable configuration उपयोग करें।
