@@ -26,20 +26,22 @@ API दस्तावेज़: `http://127.0.0.1:8000/docs`
 
 ## सुरक्षा
 वास्तविक API keys, पासवर्ड या उपयोगकर्ता दस्तावेज़ GitHub में commit न करें।
-## अपना SQLite कानूनी केस संग्रह
+## ऑनलाइन डेटाबेस नीति
 
-कानूनी केस और citation metadata के लिए Python के built-in `sqlite3` से स्थानीय database file उपयोग होती है। कोई Firebase, Firestore या hosted database API आवश्यक नहीं है।
-
-- Database file ऐप के अपने runtime/storage में बनेगी।
-- Collection/table: `legal_cases`
-- Primary key: `case_id`
-- Duplicate `case_id` पर मौजूदा रिकॉर्ड overwrite नहीं होगा।
-- Database file और उपयोगकर्ता डेटा को GitHub में commit नहीं करना है।
+मुख्य कानूनी डेटा के लिए ऑनलाइन Free Tier database चुना जाएगा। अभी कोई database vendor जोड़ा या configure नहीं किया गया है। चयन से पहले free-tier limits, backup/export, region, security rules और data portability की जाँच होगी।
 
 ## बाहरी API निर्भरता नीति
 
 इस backend में किसी बाहरी AI-provider API या third-party database API को जोड़ना स्वीकार्य नहीं है। कानूनी स्रोतों के लिए सरकारी वेबसाइटों के सार्वजनिक पृष्ठों को अपने लिखे हुए fetcher/parser से पढ़ा जाएगा; किसी vendor search API पर निर्भरता नहीं होगी। AI inference को भी अपने नियंत्रित runtime में चलाने की अलग engineering आवश्यकता है।
 
+## यूजर और Admin UI
+
+- यूजर UI: `/app` — हिन्दी, English और Hinglish; Applicant/PIO role entry।
+- Admin UI: `/admin` — केंद्रीय नियंत्रण कक्ष का प्रारंभिक dashboard।
+- Static assets इसी FastAPI सेवा से `/assets/` पर serve होते हैं; अलग frontend repository नहीं बनाई गई।
+- अभी UI प्रारंभिक है: प्रश्न विश्लेषण API, फाइल अपलोड, login/session, role permissions, सदस्यता और admin operations सक्रिय नहीं हैं।
+- Admin UI को वास्तविक authentication और authorization बनने तक सार्वजनिक production में उपयोग नहीं करना है।
+
 ## वर्तमान सीमा
 
-SQLite repository adapter और tests तैयार किए जा रहे हैं। Cloud hosting, durable storage/backup, authentication, crawler, OCR और स्वयं-होस्टेड model runtime अभी अलग-अलग चरण हैं। सरकारी domain पहचानना کسی صفحے یا فیصلے की सामग्री को सत्यापित करने के बराबर नहीं है।
+Backend में अभी health endpoint, कानूनी केस validation model/API, source-domain review helper और भूमिका-आधारित analysis instruction builder हैं। वास्तविक persistent online database, authentication, crawler, PDF/OCR, legal-content verification, AI model training/inference runtime और production admin APIs अभी बने नहीं हैं। सरकारी domain पहचानना किसी पृष्ठ या निर्णय की सामग्री को सत्यापित करने के बराबर नहीं है।
