@@ -1,8 +1,6 @@
 # रिपॉजिटरी पथ: rti_backend/app/api/routes/analysis.py
 """Applicant/PIO के लिए निष्पक्ष प्रारंभिक कानूनी जाँच-सूची."""
 
-from enum import Enum
-
 from fastapi import APIRouter
 from pydantic import BaseModel, ConfigDict, Field
 
