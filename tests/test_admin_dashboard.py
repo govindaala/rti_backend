@@ -12,6 +12,7 @@ client = TestClient(app, base_url="https://testserver")
 
 
 def configured_admin(monkeypatch):
+    client.cookies.clear()
     monkeypatch.setattr(
         admin_routes,
         "settings",
