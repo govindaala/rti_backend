@@ -2,6 +2,7 @@
 """Session-authenticated live operations dashboard and privileged admin APIs."""
 
 import hmac
+import logging
 from urllib.parse import urlsplit
 
 import psycopg
@@ -14,6 +15,7 @@ from app.core.database import get_connection
 from app.services.source_registry import is_official_source_url
 
 router = APIRouter(tags=["प्रशासन"])
+logger = logging.getLogger("rti.admin_auth")
 
 
 class AdminLogin(BaseModel):
@@ -54,6 +56,17 @@ def admin_login(payload: AdminLogin, response: Response) -> dict[str, str]:
     id_ok = hmac.compare_digest(payload.admin_id.encode(), expected_id.encode())
     pass_ok = hmac.compare_digest(payload.admin_pass.encode(), expected_pass.encode())
     if not expected_id or not expected_pass or not id_ok or not pass_ok:
+        # केवल lengths और configured flags लॉग हों; credentials कभी नहीं।
+        logger.warning(
+            "Admin login rejected: configured ADMIN_ID=%s (%d bytes), "
+            "ADMIN_PASS=%s (%d bytes); submitted ID=%d bytes, password=%d bytes",
+            bool(expected_id),
+            len(expected_id.encode("utf-8")),
+            bool(expected_pass),
+            len(expected_pass.encode("utf-8")),
+            len(payload.admin_id.encode("utf-8")),
+            len(payload.admin_pass.encode("utf-8")),
+        )
         raise HTTPException(status_code=401, detail="गलत Admin ID या Password")
     token, csrf = create_session()
     response.set_cookie(
