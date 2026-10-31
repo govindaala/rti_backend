@@ -14,13 +14,15 @@ def database_health() -> dict[str, Any]:
         return {"status": "not_configured", "database": "postgresql"}
 
     try:
-        with psycopg.connect(
-            settings.database_url,
-            connect_timeout=settings.database_connect_timeout,
-        ) as connection:
-            with connection.cursor() as cursor:
-                cursor.execute("SELECT 1")
-                cursor.fetchone()
+        with (
+            psycopg.connect(
+                settings.database_url,
+                connect_timeout=settings.database_connect_timeout,
+            ) as connection,
+            connection.cursor() as cursor,
+        ):
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
         return {"status": "connected", "database": "postgresql"}
     except psycopg.Error:
         # Do not leak hostnames, usernames, passwords, or provider error details.
