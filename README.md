@@ -32,7 +32,7 @@ API दस्तावेज़: `http://127.0.0.1:8000/docs`
 
 ## बाहरी API निर्भरता नीति
 
-इस backend में किसी बाहरी AI-provider API या third-party database API को जोड़ना स्वीकार्य नहीं है। कानूनी स्रोतों के लिए सरकारी वेबसाइटों के सार्वजनिक पृष्ठों को अपने लिखे हुए fetcher/parser से पढ़ा जाएगा; किसी vendor search API पर निर्भरता नहीं होगी। AI inference को भी अपने नियंत्रित runtime में चलाने की अलग engineering आवश्यकता है।
+इस backend में किसी बाहरी AI-provider API या third-party AI model को जोड़ना स्वीकार्य नहीं है। ऑनलाइन Free Tier database चुनने के बाद उसके storage connection/SDK का उपयोग केवल डेटा पढ़ने-लिखने के लिए किया जा सकता है; उसे AI inference या बाहरी AI सेवा के रूप में उपयोग नहीं किया जाएगा। कानूनी स्रोतों के लिए सरकारी वेबसाइटों के सार्वजनिक पृष्ठों को अपने लिखे हुए fetcher/parser से पढ़ा जाएगा; किसी vendor search API पर निर्भरता नहीं होगी। AI inference को भी अपने नियंत्रित runtime में चलाने की अलग engineering आवश्यकता है।
 
 ## यूजर और Admin UI
 
