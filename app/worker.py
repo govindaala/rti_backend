@@ -85,6 +85,66 @@ def enqueue_due_source() -> bool:
     return True
 
 
+def recover_stale_jobs(stale_after_seconds: int = 300) -> int:
+    """Crash हुए worker की lease समाप्त jobs को retry queue में वापस रखें."""
+    with get_connection() as connection, connection.cursor() as cursor:
+        cursor.execute(
+            """
+            WITH recovered AS (
+                UPDATE rti.crawl_jobs
+                SET status = CASE WHEN attempts < max_attempts THEN 'queued' ELSE 'failed' END,
+                    available_at = CASE
+                        WHEN attempts < max_attempts THEN now() + interval '30 seconds'
+                        ELSE available_at
+                    END,
+                    finished_at = CASE
+                        WHEN attempts < max_attempts THEN NULL ELSE now()
+                    END,
+                    failed_count = CASE
+                        WHEN attempts < max_attempts THEN failed_count ELSE 1
+                    END,
+                    last_error_code = 'WORKER_LEASE_EXPIRED',
+                    updated_at = now()
+                WHERE status = 'running'
+                  AND COALESCE(heartbeat_at, started_at, created_at)
+                      < now() - make_interval(secs => %s)
+                RETURNING id, source_id, status
+            ),
+            event_rows AS (
+                INSERT INTO rti.crawl_job_events (job_id, event_type, message)
+                SELECT id, 'lease_recovered',
+                       CASE WHEN status = 'queued'
+                           THEN 'Worker lease expired; job returned to retry queue'
+                           ELSE 'Worker lease expired; retry limit exhausted'
+                       END
+                FROM recovered
+                RETURNING job_id
+            ),
+            source_rows AS (
+                UPDATE rti.research_sources AS source
+                SET status = CASE
+                        WHEN EXISTS (
+                            SELECT 1 FROM rti.crawl_jobs AS job
+                            WHERE job.source_id = source.id
+                              AND job.status IN ('queued', 'running')
+                        ) THEN 'discovering'
+                        ELSE 'failed'
+                    END,
+                    last_error_code = 'WORKER_LEASE_EXPIRED',
+                    updated_at = now()
+                WHERE source.id IN (SELECT source_id FROM recovered)
+                RETURNING source.id
+            )
+            SELECT count(*) FROM recovered
+            """,
+            (stale_after_seconds,),
+        )
+        recovered_count = cursor.fetchone()[0]
+    if recovered_count:
+        LOGGER.warning("Recovered %s stale crawler jobs", recovered_count)
+    return recovered_count
+
+
 def process_one() -> bool:
     """एक job atomically claim करके fetch, extract और child links queue करें."""
     with get_connection() as connection, connection.cursor() as cursor:
@@ -93,8 +153,8 @@ def process_one() -> bool:
             SELECT j.id, s.id, COALESCE(j.current_url, s.submitted_url)
             FROM rti.crawl_jobs j
             JOIN rti.research_sources s ON s.id = j.source_id
-            WHERE j.status = 'queued'
-            ORDER BY j.created_at
+            WHERE j.status = 'queued' AND j.available_at <= now()
+            ORDER BY j.available_at, j.created_at
             FOR UPDATE OF j SKIP LOCKED
             LIMIT 1
             """
@@ -251,11 +311,12 @@ def process_one() -> bool:
                 cursor.execute(
                     """
                     UPDATE rti.crawl_jobs SET status='queued',
+                        available_at=now() + make_interval(secs => %s),
                         last_error_code='TRANSIENT_FETCH_ERROR',
                         finished_at=NULL, heartbeat_at=now(), updated_at=now()
                     WHERE id=%s
                     """,
-                    (job_id,),
+                    (min(30 * (2 ** max(attempts - 1, 0)), 1800), job_id),
                 )
                 cursor.execute(
                     """
@@ -305,6 +366,7 @@ def run_worker(poll_seconds: int, idle_seconds: int) -> None:
     LOGGER.info("Continuous crawler worker started")
     while not STOP.is_set():
         try:
+            recover_stale_jobs()
             processed = process_one()
             if not processed and enqueue_due_source():
                 processed = process_one()
