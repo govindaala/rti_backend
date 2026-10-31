@@ -5,7 +5,7 @@ import hmac
 from urllib.parse import urlsplit
 
 import psycopg
-from fastapi import APIRouter, Header, HTTPException, Request, Response, status
+from fastapi import APIRouter, Header, HTTPException, Request, Response
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
 from app.core.admin_auth import COOKIE_NAME, SESSION_TTL_SECONDS, create_session, require_admin
