@@ -48,12 +48,14 @@ def test_discover_legal_links_only_returns_same_host_legal_urls() -> None:
         '<a href="/orders/123">Order</a>'
         '<a href="https://example.com/judgment.pdf">External</a>'
         '<a href="javascript:alert(1)">Bad</a>'
+        '<a href="/download?id=7">Judgment No. 7</a>'
         '<a href="/about">Unrelated</a>'
     )
     links = discover_legal_links(html, "https://cic.gov.in/", limit=10)
     assert links == [
         "https://cic.gov.in/judgments/2024/abc.pdf",
         "https://cic.gov.in/orders/123",
+        "https://cic.gov.in/download?id=7",
     ]
 
 
