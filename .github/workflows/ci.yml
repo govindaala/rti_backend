@@ -1,0 +1,35 @@
+# रिपॉजिटरी पथ: rti_backend/.github/workflows/ci.yml
+name: Backend CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Python परीक्षण
+    runs-on: ubuntu-latest
+    steps:
+      # रिपॉजिटरी का कोड प्राप्त करें।
+      - name: कोड checkout करें
+        uses: actions/checkout@v4
+
+      # समर्थित Python संस्करण स्थापित करें।
+      - name: Python स्थापित करें
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      # प्रोजेक्ट और परीक्षण निर्भरताएँ स्थापित करें।
+      - name: Dependencies स्थापित करें
+        run: python -m pip install -e ".[dev]"
+
+      # हर push और pull request पर परीक्षण चलाएँ।
+      - name: परीक्षण चलाएँ
+        run: pytest
