@@ -1,8 +1,8 @@
 # रिपॉजिटरी पथ: rti_backend/app/core/config.py
 """ऐप की कॉन्फ़िगरेशन को environment variables से पढ़ें."""
 
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
