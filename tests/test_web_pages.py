@@ -34,3 +34,11 @@ def test_frontend_assets_are_served() -> None:
     assert "font-family" in css.text
     assert script.status_code == 200
     assert "translations" in script.text
+
+
+def test_admin_javascript_contains_human_document_review_action() -> None:
+    """Admin UI में review_required दस्तावेज़ के लिए human review control हो."""
+    response = client.get("/assets/admin.js")
+    assert response.status_code == 200
+    assert "समीक्षा के बाद Verify" in response.text
+    assert "confirm_reviewed" in response.text
