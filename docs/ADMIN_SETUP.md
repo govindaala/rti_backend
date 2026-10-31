@@ -17,7 +17,7 @@ The existing `Admin Pass` Environment Group can hold all three. Link that group 
 - The server issues a signed, 8-hour HttpOnly, Secure, SameSite=Strict cookie.
 - Admin POST actions require a session CSRF token.
 - Dashboard, source intake and legal-document verification APIs reject anonymous requests.
-- Logout removes the browser cookie. Password rotation invalidates existing sessions because the configured admin ID/password must remain valid; rotate the signing secret to invalidate every session immediately.
+- Logout removes the browser cookie. Changing the admin password or rotating the signing secret invalidates existing sessions.
 
 ## Acceptance checks
 
