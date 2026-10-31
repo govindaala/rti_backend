@@ -34,12 +34,14 @@ jobs:
       - name: Ruff lint चलाएँ
         id: ruff
         run: |
+          set -o pipefail
           mkdir -p reports
           ruff check app tests --output-format=github 2>&1 | tee reports/ruff.log
 
       - name: Frontend JavaScript syntax जाँचें
         id: javascript
         run: |
+          set -o pipefail
           node --check web/app.js 2>&1 | tee reports/node-app.log
           node --check web/admin.js 2>&1 | tee reports/node-admin.log
 
