@@ -1,9 +1,7 @@
-# रिपॉजिटरी पथ: rti_backend/.github/workflows/ci.yml
 name: Backend CI
 
 on:
   push:
-    branches: ["main", "feature/legal-source-crawler-foundation", "feature/legal-research-and-drafting-core", "feature/continuous-crawler-live-admin"]
   pull_request:
     branches: ["main", "feature/supabase-postgres-integration", "feature/legal-source-crawler-foundation", "feature/legal-research-and-drafting-core"]
 
@@ -12,21 +10,151 @@ permissions:
 
 jobs:
   test:
-    name: Python परीक्षण और lint
+    name: Python परीक्षण, lint और diagnostics
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: कोड checkout करें
+        id: checkout
         uses: actions/checkout@v4
+
       - name: Python स्थापित करें
+        id: setup_python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
+
+      - name: Diagnostics folder और run metadata
+        id: metadata
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          trap 'rc=$?; echo "::error title=Metadata command failed::UTC=$(date -u --iso-8601=seconds) script-line=${LINENO} exit=${rc} command=${BASH_COMMAND}"; exit "$rc"' ERR
+          mkdir -p reports
+          {
+            echo "CI start/checkpoint UTC: $(date -u --iso-8601=seconds)"
+            echo "Commit: $GITHUB_SHA"
+            echo "Branch/ref: $GITHUB_REF"
+            echo "Event: $GITHUB_EVENT_NAME"
+            echo "Runner: $RUNNER_OS"
+            echo "Workflow: $GITHUB_WORKFLOW"
+            echo "Run ID: $GITHUB_RUN_ID"
+            echo "Attempt: $GITHUB_RUN_ATTEMPT"
+          } | tee reports/run-metadata.txt
+
       - name: Dependencies स्थापित करें
-        run: python -m pip install -e ".[dev]"
+        id: dependencies
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          trap 'rc=$?; echo "::error title=Dependencies command failed::UTC=$(date -u --iso-8601=seconds) script-line=${LINENO} exit=${rc} command=${BASH_COMMAND}"; exit "$rc"' ERR
+          echo "START UTC: $(date -u --iso-8601=seconds)"
+          python -m pip install --upgrade pip 2>&1 | tee reports/pip-upgrade.log
+          python -m pip install -e ".[dev]" 2>&1 | tee reports/pip-install.log
+          echo "END UTC: $(date -u --iso-8601=seconds)"
+
       - name: Ruff lint चलाएँ
-        run: ruff check app tests
+        id: ruff
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          trap 'rc=$?; echo "::error title=Ruff command failed::UTC=$(date -u --iso-8601=seconds) script-line=${LINENO} exit=${rc} command=${BASH_COMMAND}"; exit "$rc"' ERR
+          echo "START UTC: $(date -u --iso-8601=seconds)"
+          ruff check app tests --output-format=github 2>&1 | tee reports/ruff.log
+          echo "END UTC: $(date -u --iso-8601=seconds)"
+
       - name: Frontend JavaScript syntax जाँचें
-        run: node --check web/app.js && node --check web/admin.js
-      - name: परीक्षण चलाएँ
-        run: pytest
+        id: javascript
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          trap 'rc=$?; echo "::error title=JavaScript syntax command failed::UTC=$(date -u --iso-8601=seconds) script-line=${LINENO} exit=${rc} command=${BASH_COMMAND}"; exit "$rc"' ERR
+          echo "START UTC: $(date -u --iso-8601=seconds)"
+          node --check web/app.js 2>&1 | tee reports/node-app.log
+          node --check web/admin.js 2>&1 | tee reports/node-admin.log
+          echo "END UTC: $(date -u --iso-8601=seconds)"
+
+      - name: परीक्षण चलाएँ — पूरा traceback और JUnit report
+        id: pytest
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          trap 'rc=$?; echo "::error title=Pytest diagnostic command failed::UTC=$(date -u --iso-8601=seconds) script-line=${LINENO} exit=${rc} command=${BASH_COMMAND}"; exit "$rc"' ERR
+          mkdir -p reports
+          echo "START UTC: $(date -u --iso-8601=seconds)"
+          set +e
+          pytest -vv --tb=long --showlocals --junitxml=reports/junit.xml 2>&1 | tee reports/pytest.log
+          test_status=${PIPESTATUS[0]}
+          echo "PYTEST EXIT CODE: $test_status"
+          if [ "$test_status" -ne 0 ]; then
+            echo "::error title=Pytest failed::UTC=$(date -u --iso-8601=seconds) exit=$test_status; inspect FAILED TEST, FAILURE REASON and TRACEBACK SOURCE LOCATIONS below."
+          fi
+          echo "END UTC: $(date -u --iso-8601=seconds)"
+          python scripts/ci_diagnostics.py reports/junit.xml 2>&1 | tee reports/diagnostics.log
+          diagnostic_status=${PIPESTATUS[0]}
+          if [ "$diagnostic_status" -ne 0 ]; then
+            echo "::warning::JUnit diagnostic parser failed; raw pytest log is in ci-diagnostics artifact."
+          fi
+          exit "$test_status"
+
+      - name: Failure summary — failing step, timestamp और commit
+        if: always()
+        env:
+          CHECKOUT_OUTCOME: ${{ steps.checkout.outcome }}
+          PYTHON_OUTCOME: ${{ steps.setup_python.outcome }}
+          METADATA_OUTCOME: ${{ steps.metadata.outcome }}
+          DEPENDENCIES_OUTCOME: ${{ steps.dependencies.outcome }}
+          RUFF_OUTCOME: ${{ steps.ruff.outcome }}
+          JAVASCRIPT_OUTCOME: ${{ steps.javascript.outcome }}
+          PYTEST_OUTCOME: ${{ steps.pytest.outcome }}
+        run: |
+          now="$(date -u --iso-8601=seconds)"
+          {
+            echo "## CI diagnostic summary"
+            echo "- Finished at (UTC): $now"
+            echo "- Commit: $GITHUB_SHA"
+            echo "- Ref: $GITHUB_REF"
+            echo "- Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID (attempt $GITHUB_RUN_ATTEMPT)"
+            echo
+            echo "| Step | Result |"
+            echo "|---|---|"
+            echo "| Checkout | $CHECKOUT_OUTCOME |"
+            echo "| Python setup | $PYTHON_OUTCOME |"
+            echo "| Metadata | $METADATA_OUTCOME |"
+            echo "| Dependencies | $DEPENDENCIES_OUTCOME |"
+            echo "| Ruff | $RUFF_OUTCOME |"
+            echo "| JavaScript syntax | $JAVASCRIPT_OUTCOME |"
+            echo "| Pytest | $PYTEST_OUTCOME |"
+            echo
+            echo "Exact Python traceback frames are emitted as file:line annotations; raw logs and JUnit XML are in ci-diagnostics artifact."
+          } >> "$GITHUB_STEP_SUMMARY"
+          for entry in "checkout:$CHECKOUT_OUTCOME" "python setup:$PYTHON_OUTCOME" "metadata:$METADATA_OUTCOME" "dependencies:$DEPENDENCIES_OUTCOME" "ruff:$RUFF_OUTCOME" "javascript:$JAVASCRIPT_OUTCOME" "pytest:$PYTEST_OUTCOME"; do
+            case "$entry" in
+              *:failure|*:cancelled|*:timed_out)
+                echo "::error title=Workflow step failure::$entry at $now; commit $GITHUB_SHA"
+                ;;
+            esac
+          done
+          {
+            echo "CI finished UTC: $now"
+            echo "Commit: $GITHUB_SHA"
+            echo "Ref: $GITHUB_REF"
+            echo "Checkout: $CHECKOUT_OUTCOME"
+            echo "Python setup: $PYTHON_OUTCOME"
+            echo "Metadata: $METADATA_OUTCOME"
+            echo "Dependencies: $DEPENDENCIES_OUTCOME"
+            echo "Ruff: $RUFF_OUTCOME"
+            echo "JavaScript: $JAVASCRIPT_OUTCOME"
+            echo "Pytest: $PYTEST_OUTCOME"
+          } > reports/step-outcomes.txt
+
+      - name: CI logs और test report सुरक्षित करें
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-diagnostics
+          path: reports/
+          if-no-files-found: warn
+          retention-days: 14

@@ -1,4 +1,3 @@
-# रिपॉजिटरी पथ: rti_backend/tests/test_worker.py
 """Continuous worker loop और graceful stop के unit tests."""
 
 import httpx
@@ -9,12 +8,15 @@ from app import worker
 def test_worker_stops_cleanly_after_shutdown_signal(monkeypatch) -> None:
     """SIGTERM flag set होने पर worker अगला polling cycle नहीं चलाता."""
     worker.STOP.clear()
+    # Worker loop के database recovery चरण को isolate करें; यह unit test है.
+    monkeypatch.setattr(worker, "recover_stale_jobs", lambda: 0)
 
     def fake_process_one() -> bool:
         worker.STOP.set()
         return False
 
     monkeypatch.setattr(worker, "process_one", fake_process_one)
+    monkeypatch.setattr(worker, "enqueue_due_source", lambda: False)
     worker.run_worker(poll_seconds=0, idle_seconds=0)
     assert worker.STOP.is_set()
     worker.STOP.clear()
@@ -23,6 +25,7 @@ def test_worker_stops_cleanly_after_shutdown_signal(monkeypatch) -> None:
 def test_worker_schedules_due_source_when_queue_is_empty(monkeypatch) -> None:
     """Queue खाली होने पर due-source scheduler चलता है और नई job process होती है."""
     worker.STOP.clear()
+    monkeypatch.setattr(worker, "recover_stale_jobs", lambda: 0)
     calls = {"process": 0, "schedule": 0}
 
     def fake_process_one() -> bool:

@@ -1,5 +1,5 @@
 # रिपॉजिटरी पथ: rti_backend/tests/test_web_pages.py
-"""एक ही FastAPI सेवा से user और read-only admin UI serve होने की जाँच."""
+"""एक ही FastAPI सेवा से user और secure admin UI serve होने की जाँच."""
 
 from fastapi.testclient import TestClient
 
@@ -16,14 +16,20 @@ def test_user_interface_is_served() -> None:
     assert 'id="language"' in response.text
 
 
-def test_admin_interface_shows_live_metrics_and_token_protected_source_form() -> None:
-    """Admin dashboard public metrics दिखाए और source intake के लिए token माँगे."""
+def test_admin_interface_shows_secure_login_and_protected_source_form() -> None:
+    """Admin UI secure login दिखाए; dashboard और source form login से पहले छिपे हों."""
     response = client.get("/admin")
     assert response.status_code == 200
     assert "कानूनी शोध नियंत्रण कक्ष" in response.text
+    assert 'id="login-form"' in response.text
+    assert 'id="admin-id"' in response.text
+    assert 'id="admin-pass"' in response.text
+    assert 'id="admin-content" hidden' in response.text
     assert 'id="source-form"' in response.text
-    assert 'id="admin-token"' in response.text
+    assert 'id="login-panel" class="panel" hidden' in response.text
     assert "स्रोत स्वीकृत करें" in response.text
+    # पुराना bearer-token form हट चुका है; अब signed session + CSRF इस्तेमाल होता है.
+    assert 'id="admin-token"' not in response.text
 
 
 def test_frontend_assets_are_served() -> None:
