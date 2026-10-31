@@ -10,7 +10,7 @@ from threading import Event
 
 from app.core.config import settings
 from app.core.database import get_connection
-from app.services.crawler import discover_legal_links, fetch_document
+from app.services.crawler import classify_document_type, discover_legal_links, fetch_document
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 LOGGER = logging.getLogger("rti.worker")
@@ -92,7 +92,7 @@ def process_one() -> bool:
                 """,
                 (
                     source_id, job_id, result["final_url"], result["title"],
-                    "other" if result["document_type"] == "html" else "unknown",
+                    classify_document_type(url, result["title"], result["text"]),
                     result["content_type"], result["text"], result["content_sha256"],
                     result["page_count"],
                 ),
