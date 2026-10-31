@@ -1,0 +1,66 @@
+<!-- रिपॉजिटरी पथ: rti_backend/web/index.html -->
+<!doctype html>
+<html lang="hi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#102b46">
+  <meta name="description" content="RTI कानूनी जानकारी और विश्लेषण मंच">
+  <title>RTI साथी — कानूनी जानकारी</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <script defer src="/assets/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/app"><span class="brand-mark">RTI</span><span>RTI साथी<small>कानूनी जानकारी मंच</small></span></a>
+    <nav><a href="#how" data-i18n="how">कैसे काम करता है</a><a href="/admin" class="admin-link">Admin</a></nav>
+    <label class="language"><span data-i18n="language">भाषा</span>
+      <select id="language"><option value="hi">हिन्दी</option><option value="en">English</option><option value="hinglish">Hinglish</option></select>
+    </label>
+  </header>
+  <main class="container">
+    <section class="hero">
+      <div class="eyebrow" data-i18n="eyebrow">सूचना का अधिकार • कानून आधारित सहायता</div>
+      <h1 data-i18n="heroTitle">RTI के सवालों को समझें,<br>कानून के आधार पर आगे बढ़ें।</h1>
+      <p data-i18n="heroText">कानून, सरकारी आदेश और न्यायिक निर्णयों के स्रोत-आधारित अध्ययन के लिए एक स्वतंत्र मंच।</p>
+      <div class="hero-note"><span class="dot"></span><span data-i18n="notFiling">यह मंच आवेदन या अपील अपने-आप दाखिल नहीं करता।</span></div>
+    </section>
+
+    <section class="role-grid" aria-label="सेवा चुनें">
+      <article class="role-card applicant">
+        <div class="role-icon">आ</div><div class="tag free" data-i18n="free">निःशुल्क</div>
+        <h2 data-i18n="applicantTitle">आवेदक सहायता</h2>
+        <p data-i18n="applicantText">RTI आवेदन, PIO के जवाब, छूट की वैधता और प्रथम/द्वितीय अपील के विकल्पों को समझें।</p>
+        <button class="primary" data-role="applicant" data-i18n="startApplicant">आवेदक के रूप में आगे बढ़ें</button>
+      </article>
+      <article class="role-card pio">
+        <div class="role-icon">पी</div><div class="tag paid" data-i18n="paid">सदस्यता आधारित</div>
+        <h2 data-i18n="pioTitle">PIO सहायता</h2>
+        <p data-i18n="pioText">वैधानिक समय-सीमा, लागू अपवाद, आंशिक प्रकटीकरण और कारणयुक्त जवाब का विश्लेषण करें।</p>
+        <button class="secondary" data-role="pio" data-i18n="startPio">PIO सहायता देखें</button>
+      </article>
+    </section>
+
+    <section class="workspace panel" id="workspace" hidden>
+      <div class="section-heading"><div><div class="eyebrow" data-i18n="workspaceLabel">विश्लेषण कार्यक्षेत्र</div><h2 id="workspace-title">आवेदक सहायता</h2></div><button class="quiet" id="close-workspace" data-i18n="close">बंद करें</button></div>
+      <form id="analysis-form">
+        <input type="hidden" id="selected-role" value="applicant">
+        <label for="question" data-i18n="questionLabel">आप किस RTI/कानूनी मुद्दे पर सहायता चाहते हैं?</label>
+        <textarea id="question" rows="5" required minlength="20" data-placeholder="questionPlaceholder" placeholder="अपना प्रश्न, PIO का जवाब या संबंधित कानूनी स्थिति लिखें..."></textarea>
+        <label for="documents" data-i18n="documentsLabel">संबंधित दस्तावेज़ (वैकल्पिक)</label>
+        <input id="documents" type="file" accept=".pdf,.txt,.doc,.docx,.jpg,.jpeg,.png" multiple>
+        <p class="hint" data-i18n="privacyHint">संवेदनशील निजी जानकारी हटाकर ही दस्तावेज़ दें। अभी फाइल अपलोड सुविधा सक्रिय नहीं है।</p>
+        <button class="primary" type="submit" data-i18n="submitQuestion">विश्लेषण अनुरोध भेजें</button>
+        <p class="notice" id="analysis-status" role="status" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <section class="how panel" id="how">
+      <div class="eyebrow" data-i18n="methodLabel">हमारा तरीका</div><h2 data-i18n="methodTitle">स्रोत पहले, निष्कर्ष बाद में।</h2>
+      <div class="steps"><div><b>01</b><h3 data-i18n="step1Title">मूल स्रोत</h3><p data-i18n="step1Text">अधिनियम, नियम, सरकारी आदेश और न्यायिक निर्णय।</p></div><div><b>02</b><h3 data-i18n="step2Title">मुद्दा-वार जाँच</h3><p data-i18n="step2Text">हर कानूनी प्रश्न और दोनों पक्षों के तर्क अलग-अलग।</p></div><div><b>03</b><h3 data-i18n="step3Title">संदर्भ सहित उत्तर</h3><p data-i18n="step3Text">धारा, पैरा और स्रोत की स्थिति स्पष्ट करके।</p></div></div>
+    </section>
+    <footer><span>© RTI साथी</span><span data-i18n="disclaimer">यह सूचना-सहायक मंच है, वकील की सेवाओं का विकल्प नहीं।</span></footer>
+  </main>
+  <dialog id="pio-dialog" class="dialog"><form method="dialog"><button class="dialog-close" aria-label="Close">×</button><h2 data-i18n="pioDialogTitle">PIO सदस्यता</h2><p data-i18n="pioDialogText">PIO सहायता सदस्यता-आधारित होगी। भुगतान और खाता सत्यापन अभी सक्रिय नहीं हैं।</p><button class="secondary" data-i18n="understood">समझ गया</button></form></dialog>
+</body>
+</html>
