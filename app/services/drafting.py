@@ -58,3 +58,44 @@ def build_rti_draft(payload: RTIDraftRequest) -> str:
         f"Applicant: {payload.applicant_name}\nAddress: {payload.postal_address}\n"
         "Date: __________\nSignature: __________\n"
     )
+
+
+def build_first_appeal_draft(payload) -> str:
+    """धारा 19(1) की प्रथम अपील का संपादन योग्य मसौदा बनाएँ."""
+    grounds = "\\n".join(
+        f"{index}. {item}" for index, item in enumerate(payload.grounds, 1)
+    )
+    reply_date = payload.pio_reply_date or (
+        "उत्तर प्राप्त नहीं" if payload.language == DraftLanguage.HINDI else "No reply received"
+    )
+    if payload.language == DraftLanguage.HINDI:
+        return (
+            f"सेवा में,\\nप्रथम अपीलीय प्राधिकारी,\\n{payload.first_appellate_authority}\\n"
+            f"{payload.public_authority}\\n\\n"
+            "विषय: सूचना का अधिकार अधिनियम, 2005 की धारा 19(1) के अंतर्गत प्रथम अपील।\\n\\n"
+            "महोदय/महोदया,\\n"
+            f"मैंने दिनांक {payload.rti_application_date} को लोक सूचना अधिकारी को RTI आवेदन "
+            f"प्रस्तुत किया था। PIO का उत्तर: {reply_date}। "
+            "प्राप्त उत्तर/उत्तर न मिलने से असंतुष्ट होकर निम्न आधारों पर यह प्रथम अपील "
+            "प्रस्तुत कर रहा/रही हूँ:\\n\\n"
+            f"{grounds}\\n\\n"
+            f"माँगी गई राहत: {payload.relief_sought}\\n\\n"
+            "कृपया अभिलेखों और लागू कानून के आधार पर कारणयुक्त आदेश पारित करें तथा "
+            "जहाँ आवश्यक हो सुनवाई का अवसर दें।\\n\\n"
+            f"अपीलकर्ता: {payload.applicant_name}\\nपता: {payload.postal_address}\\n"
+            "दिनांक: __________\\nहस्ताक्षर: __________\\n"
+        )
+    return (
+        f"To,\\nThe First Appellate Authority,\\n{payload.first_appellate_authority}\\n"
+        f"{payload.public_authority}\\n\\n"
+        "Subject: First appeal under Section 19(1) of the Right to Information Act, 2005.\\n\\n"
+        "Sir/Madam,\\n"
+        f"I submitted an RTI application to the PIO on {payload.rti_application_date}. "
+        f"PIO response: {reply_date}. Being aggrieved by the response/non-response, "
+        "I submit this first appeal on the following grounds:\\n\\n"
+        f"{grounds}\\n\\nRelief sought: {payload.relief_sought}\\n\\n"
+        "Please pass a reasoned order after considering the records and applicable law, "
+        "and provide an opportunity of hearing where appropriate.\\n\\n"
+        f"Appellant: {payload.applicant_name}\\nAddress: {payload.postal_address}\\n"
+        "Date: __________\\nSignature: __________\\n"
+    )
