@@ -9,7 +9,7 @@
 - उपयोगकर्ता दस्तावेज़ों को साझा ज्ञान-संग्रह में जोड़ने से पहले स्पष्ट सहमति, पहचान हटाना और समीक्षा आवश्यक होगी।
 
 ## पहला चरण
-FastAPI सेवा, कॉन्फ़िगरेशन, हेल्थ API और स्वचालित परीक्षण।
+FastAPI सेवा, कॉन्फ़िगरेशन, हेल्थ API और स्वचालित परीक्षण। PostgreSQL connectivity layer भी जोड़ी गई है; वास्तविक database schema और legal-data persistence अगले चरण हैं।
 
 ## स्थानीय रूप से चलाएँ
 Python 3.11 या नया संस्करण आवश्यक है।
@@ -22,17 +22,25 @@ uvicorn app.main:app --reload
 ```
 
 हेल्थ जाँच: `http://127.0.0.1:8000/api/v1/health`
+डेटाबेस कनेक्शन जाँच: `http://127.0.0.1:8000/api/v1/health/database`
 API दस्तावेज़: `http://127.0.0.1:8000/docs`
 
-## सुरक्षा
-वास्तविक API keys, पासवर्ड या उपयोगकर्ता दस्तावेज़ GitHub में commit न करें।
-## ऑनलाइन डेटाबेस नीति
+## Supabase PostgreSQL configuration
 
-मुख्य कानूनी डेटा के लिए ऑनलाइन Free Tier database चुना जाएगा। अभी कोई database vendor जोड़ा या configure नहीं किया गया है। चयन से पहले free-tier limits, backup/export, region, security rules और data portability की जाँच होगी।
+- Supabase का उपयोग केवल PostgreSQL data storage के लिए होगा; किसी बाहरी AI model या AI inference API के लिए नहीं।
+- `DATABASE_URL` को hosting provider के server-side Environment Variables में रखें। इसे GitHub source, frontend, issue या chat में न डालें।
+- स्थानीय परीक्षण के लिए निजी `.env` फाइल का उपयोग किया जा सकता है; `.env` Git से ignore है।
+- `.env.example` में केवल खाली placeholder है, कोई credential नहीं।
+- `GET /api/v1/health/database` सिर्फ `connected`, `not_configured` या `unavailable` लौटाता है; credentials और raw database errors उजागर नहीं करता।
+- इस चरण में कोई कानूनी डेटा टेबल, migration या sample legal record नहीं बनाया गया है।
+
+## सुरक्षा
+
+वास्तविक API keys, पासवर्ड या उपयोगकर्ता दस्तावेज़ GitHub में commit न करें। Production में database के लिए न्यूनतम अधिकार वाला अलग database role उपयोग करें; Supabase के उच्च-अधिकार वाले service credentials को browser/frontend में कभी न रखें।
 
 ## बाहरी API निर्भरता नीति
 
-इस backend में किसी बाहरी AI-provider API या third-party AI model को जोड़ना स्वीकार्य नहीं है। ऑनलाइन Free Tier database चुनने के बाद उसके storage connection/SDK का उपयोग केवल डेटा पढ़ने-लिखने के लिए किया जा सकता है; उसे AI inference या बाहरी AI सेवा के रूप में उपयोग नहीं किया जाएगा। कानूनी स्रोतों के लिए सरकारी वेबसाइटों के सार्वजनिक पृष्ठों को अपने लिखे हुए fetcher/parser से पढ़ा जाएगा; किसी vendor search API पर निर्भरता नहीं होगी। AI inference को भी अपने नियंत्रित runtime में चलाने की अलग engineering आवश्यकता है।
+इस backend में किसी बाहरी AI-provider API या third-party AI model को जोड़ना स्वीकार्य नहीं है। ऑनलाइन database का उपयोग केवल डेटा पढ़ने-लिखने के लिए किया जा सकता है। कानूनी स्रोतों के लिए सरकारी वेबसाइटों के सार्वजनिक पृष्ठों को अपने लिखे हुए fetcher/parser से पढ़ा जाएगा; किसी vendor search API पर निर्भरता नहीं होगी। AI inference को अपने नियंत्रित runtime में चलाने की अलग engineering आवश्यकता है।
 
 ## यूजर और Admin UI
 
@@ -44,4 +52,4 @@ API दस्तावेज़: `http://127.0.0.1:8000/docs`
 
 ## वर्तमान सीमा
 
-Backend में अभी health endpoint, कानूनी केस validation model/API, source-domain review helper और भूमिका-आधारित analysis instruction builder हैं। वास्तविक persistent online database, authentication, crawler, PDF/OCR, legal-content verification, AI model training/inference runtime और production admin APIs अभी बने नहीं हैं। सरकारी domain पहचानना किसी पृष्ठ या निर्णय की सामग्री को सत्यापित करने के बराबर नहीं है।
+Backend में अभी health endpoint, PostgreSQL connectivity check, कानूनी केस validation model/API, source-domain review helper और भूमिका-आधारित analysis instruction builder हैं। वास्तविक persistent legal-data schema, authentication, crawler, PDF/OCR, legal-content verification, AI model training/inference runtime और production admin APIs अभी बने नहीं हैं। सरकारी domain पहचानना किसी पृष्ठ या निर्णय की सामग्री को सत्यापित करने के बराबर नहीं है।
