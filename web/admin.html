@@ -1,0 +1,37 @@
+<!-- रिपॉजिटरी पथ: rti_backend/web/admin.html -->
+<!doctype html>
+<html lang="hi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#102b46">
+  <title>RTI साथी — Admin Panel</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <script defer src="/assets/admin.js"></script>
+</head>
+<body class="admin-page">
+  <header class="topbar">
+    <a class="brand" href="/app"><span class="brand-mark">RTI</span><span>RTI साथी<small>Central Administration</small></span></a>
+    <nav><a href="/app">यूजर इंटरफेस</a></nav>
+    <span class="admin-badge">ADMIN CONSOLE</span>
+  </header>
+  <main class="container admin-container">
+    <section class="admin-heading"><div class="eyebrow">केंद्रीय नियंत्रण कक्ष</div><h1>Admin Panel</h1><p>उपयोगकर्ता, कानूनी ज्ञान, रिसर्च कार्य और सिस्टम स्थिति का प्रबंधन।</p></section>
+    <section class="security-warning"><strong>सुरक्षा सूचना</strong><p>यह अभी UI skeleton है। वास्तविक Admin login, role authorization और audit logging लागू होने तक इसे सार्वजनिक उत्पादन में उपयोग न करें। केवल UI में पासवर्ड डालने से सुरक्षा नहीं बनती।</p></section>
+    <section class="admin-grid">
+      <article class="panel admin-card"><div class="card-top"><span class="metric-icon">01</span><span class="status pending">API जाँच</span></div><h2>Backend स्थिति</h2><p>स्वास्थ्य endpoint से backend उपलब्धता जाँचें।</p><button class="secondary" id="check-health">स्थिति जाँचें</button><p id="health-result" class="notice" role="status"></p></article>
+      <article class="panel admin-card"><div class="card-top"><span class="metric-icon">02</span><span class="status pending">लंबित</span></div><h2>कानूनी ज्ञान समीक्षा</h2><p>नए निर्णय, citations, पैरा और सत्यापन स्थिति की समीक्षा।</p><button class="quiet" disabled>Authentication के बाद उपलब्ध</button></article>
+      <article class="panel admin-card"><div class="card-top"><span class="metric-icon">03</span><span class="status pending">लंबित</span></div><h2>रिसर्च कार्य कतार</h2><p>सरकारी स्रोत, crawler jobs, retries और worker checkpoints।</p><button class="quiet" disabled>Worker module अभी नहीं जुड़ा</button></article>
+      <article class="panel admin-card"><div class="card-top"><span class="metric-icon">04</span><span class="status pending">लंबित</span></div><h2>उपयोगकर्ता और सदस्यता</h2><p>Applicant/PIO roles, subscription और quota management।</p><button class="quiet" disabled>Account module अभी नहीं जुड़ा</button></article>
+      <article class="panel admin-card"><div class="card-top"><span class="metric-icon">05</span><span class="status pending">लंबित</span></div><h2>सिस्टम लॉग और सुरक्षा</h2><p>प्रवेश लॉग, त्रुटियाँ, सहमति रिकॉर्ड और audit trail।</p><button class="quiet" disabled>Audit module अभी नहीं जुड़ा</button></article>
+      <article class="panel admin-card"><div class="card-top"><span class="metric-icon">06</span><span class="status pending">लंबित</span></div><h2>Code Development AI</h2><p>अलग branch पर बदलाव, tests, security checks और merge approval।</p><button class="quiet" disabled>Code agent अभी नहीं जुड़ा</button></article>
+    </section>
+    <section class="panel admin-login">
+      <h2>Administrator authentication</h2>
+      <p class="hint">Login API और सुरक्षित session व्यवस्था बनने के बाद ही यह form सक्रिय किया जाएगा। अभी credentials माँगे या भेजे नहीं जाएँगे।</p>
+      <form id="admin-login-form"><label for="admin-email">Admin email</label><input id="admin-email" type="email" autocomplete="username" disabled placeholder="admin@example.com"><label for="admin-password">Password</label><input id="admin-password" type="password" autocomplete="current-password" disabled placeholder="Authentication module pending"><button class="primary" disabled>Login</button></form>
+    </section>
+    <footer><a href="/app">← यूजर इंटरफेस पर लौटें</a><span>सुरक्षित Admin APIs लागू होना बाकी है।</span></footer>
+  </main>
+</body>
+</html>
