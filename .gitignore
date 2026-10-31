@@ -1,0 +1,31 @@
+# Python कैश और compiled फाइलें
+__pycache__/
+*.py[cod]
+*$py.class
+
+# वर्चुअल एनवायरनमेंट
+.venv/
+venv/
+env/
+
+# परीक्षण और कवरेज
+.pytest_cache/
+.coverage
+htmlcov/
+
+# स्थानीय secrets और environment फाइलें
+.env
+.env.*
+!.env.example
+
+# IDE और ऑपरेटिंग सिस्टम फाइलें
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# अस्थायी लॉग और अपलोड
+*.log
+tmp/
+temp/
+uploads/
