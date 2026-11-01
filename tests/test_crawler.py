@@ -41,7 +41,7 @@ def test_html_extraction_removes_scripts_styles_and_normalizes_whitespace() -> N
     assert "display:none" not in result
 
 
-def test_discover_legal_links_only_returns_same_host_legal_urls() -> None:
+def test_discover_legal_links_accepts_official_hosts_and_pagination_but_rejects_untrusted_hosts() -> None:
     """Legal PDFs and judgment paths are discovered; off-domain links are excluded."""
     html = (
         '<a href="/judgments/2024/abc.pdf">PDF</a>'
@@ -49,6 +49,8 @@ def test_discover_legal_links_only_returns_same_host_legal_urls() -> None:
         '<a href="https://example.com/judgment.pdf">External</a>'
         '<a href="javascript:alert(1)">Bad</a>'
         '<a href="/download?id=7">Judgment No. 7</a>'
+        '<a href="https://dsscic.nic.in/rti-request/view-pdf-data/123">Official hosted PDF</a>'
+        '<a href="?page=2">Next page</a>'
         '<a href="/about">Unrelated</a>'
     )
     links = discover_legal_links(html, "https://cic.gov.in/", limit=10)
@@ -56,6 +58,8 @@ def test_discover_legal_links_only_returns_same_host_legal_urls() -> None:
         "https://cic.gov.in/judgments/2024/abc.pdf",
         "https://cic.gov.in/orders/123",
         "https://cic.gov.in/download?id=7",
+        "https://dsscic.nic.in/rti-request/view-pdf-data/123",
+        "https://cic.gov.in/?page=2",
     ]
 
 
