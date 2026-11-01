@@ -18,7 +18,7 @@ from app.services.source_registry import is_official_source_url
 USER_AGENT = "RTI-ResearchBot/0.2 (+respectful public legal research)"
 LEGAL_PATH_HINTS = (
     "judgment", "judgements", "judgement", "decision", "decisions", "order", "orders",
-    "decision", "case", "court", "circular", "notification", "gazette",
+    "case", "court", "circular", "notification", "gazette",
     "act", "rules", "regulation", "tribunal", "commission", "cause-list",
 )
 
@@ -58,10 +58,9 @@ class _LinkParser(HTMLParser):
 
 
 def discover_legal_links(html: str, base_url: str, limit: int = 25) -> list[str]:
-    """उसी official host के PDF और स्पष्ट legal-path links लौटाएँ."""
+    """Allowlisted official-host PDFs, legal pages and pagination links खोजें."""
     parser = _LinkParser()
     parser.feed(html)
-    base = urlsplit(base_url)
     seen: set[str] = set()
     results: list[str] = []
     for href, anchor_text in parser.links:
@@ -102,7 +101,10 @@ def discover_sitemap_links(
     if not _robots_allows(safe_base, timeout_seconds):
         return []
     parsed = urlsplit(safe_base)
-    candidates = [f"{parsed.scheme}://{parsed.netloc}/sitemap.xml", f"{parsed.scheme}://{parsed.netloc}/sitemap_index.xml"]
+    candidates = [
+        f"{parsed.scheme}://{parsed.netloc}/sitemap.xml",
+        f"{parsed.scheme}://{parsed.netloc}/sitemap_index.xml",
+    ]
     visited: set[str] = set()
     discovered: list[str] = []
     headers = {"User-Agent": USER_AGENT, "Accept": "application/xml,text/xml,*/*"}
