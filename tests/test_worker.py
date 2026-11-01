@@ -155,7 +155,7 @@ def test_preflight_checks_required_schema_and_ocr_languages(monkeypatch) -> None
             return None
 
         def fetchone(self):
-            return (True, True, True, True, True, True)
+            return (True, True, True, True, True, True, True)
 
     class FakeConnection:
         def __enter__(self):
@@ -197,7 +197,7 @@ def test_preflight_keeps_worker_usable_when_ocr_runtime_is_missing(monkeypatch) 
             return None
 
         def fetchone(self):
-            return (True, True, True, True, True, True)
+            return (True, True, True, True, True, True, True)
 
     class FakeConnection:
         def __enter__(self):
