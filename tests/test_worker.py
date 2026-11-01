@@ -228,3 +228,41 @@ def test_preflight_keeps_worker_usable_when_ocr_runtime_is_missing(monkeypatch) 
     assert report["database_schema_ready"] is True
     assert report["ocr_ready"] is False
     assert report["warnings"]
+
+
+def test_record_worker_heartbeat_upserts_running_status(monkeypatch) -> None:
+    statements = []
+
+    class FakeCursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, query, params=None):
+            statements.append((query, params))
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return FakeCursor()
+
+    monkeypatch.setattr(worker, "get_connection", lambda: FakeConnection())
+    worker.record_worker_heartbeat("running")
+    assert len(statements) == 1
+    assert "INSERT INTO rti.worker_heartbeats" in statements[0][0]
+    assert "ON CONFLICT (worker_id)" in statements[0][0]
+    assert statements[0][1][3] == "running"
+
+
+def test_record_worker_heartbeat_rejects_unknown_status() -> None:
+    import pytest
+
+    with pytest.raises(ValueError):
+        worker.record_worker_heartbeat("healthy")
