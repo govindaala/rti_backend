@@ -24,6 +24,8 @@ class Settings:
     crawler_links_per_page: int = int(os.getenv("CRAWLER_LINKS_PER_PAGE", "25"))
     crawler_max_pages_per_source: int = int(os.getenv("CRAWLER_MAX_PAGES_PER_SOURCE", "250"))
     crawler_recrawl_hours: int = int(os.getenv("CRAWLER_RECRAWL_HOURS", "24"))
+    scheduler_token: str | None = os.getenv("OFFICIAL_DISCOVERY_TOKEN")
+    scheduler_max_jobs_per_run: int = int(os.getenv("OFFICIAL_DISCOVERY_MAX_JOBS", "6"))
 
 
 settings = Settings()
