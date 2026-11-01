@@ -1,3 +1,4 @@
+# रिपॉजिटरी पथ: rti_backend/app/api/routes/admin.py
 """Session-authenticated live operations dashboard and privileged admin APIs."""
 
 import hmac
