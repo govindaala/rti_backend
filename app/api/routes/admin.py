@@ -6,7 +6,7 @@ import logging
 from urllib.parse import urlsplit
 
 import psycopg
-from fastapi import APIRouter, Header, HTTPException, Request, Response
+from fastapi import APIRouter, Header, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
 from app.core.admin_auth import COOKIE_NAME, SESSION_TTL_SECONDS, create_session, require_admin
@@ -326,6 +326,50 @@ def verify_legal_document(
     except psycopg.Error as exc:
         raise HTTPException(status_code=503, detail="Document review service is temporarily unavailable") from exc
 
+
+
+@router.get("/admin/documents/ocr-pending", summary="OCR pending दस्तावेज़ों की paginated सूची")
+def list_ocr_pending_documents(
+    request: Request,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0, le=100000),
+) -> dict:
+    """Admin को retry योग्य OCR backlog दिखाएँ; केवल needs_ocr records लौटाएँ."""
+    require_admin(request)
+    if not settings.database_url:
+        raise HTTPException(status_code=503, detail="Database is not configured")
+    try:
+        with get_connection() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """SELECT id::text, title, canonical_url, extraction_status, updated_at
+                   FROM rti.legal_documents
+                   WHERE ocr_required = true AND status = 'needs_ocr'
+                   ORDER BY updated_at DESC, id
+                   LIMIT %s OFFSET %s""",
+                (limit + 1, offset),
+            )
+            rows = cursor.fetchall()
+        has_more = len(rows) > limit
+        items = [
+            {
+                "id": row[0],
+                "title": row[1],
+                "url": row[2],
+                "extraction_status": row[3],
+                "updated_at": row[4].isoformat(),
+                "ocr_required": True,
+                "status": "needs_ocr",
+            }
+            for row in rows[:limit]
+        ]
+        return {
+            "items": items,
+            "limit": limit,
+            "offset": offset,
+            "has_more": has_more,
+        }
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail="OCR backlog is temporarily unavailable") from exc
 
 @router.post(
     "/admin/documents/{document_id}/retry-ocr",
