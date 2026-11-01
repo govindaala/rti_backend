@@ -31,6 +31,7 @@ uvicorn app.main:app --reload
 - `POST /api/v1/admin/auth/logout` — CSRF-protected logout.
 - `GET /api/v1/admin/dashboard` — authenticated live source/job/document metrics.
 - `GET /api/v1/admin/queue-health` — queue backlog, stale jobs और process-level worker heartbeat; worker-heartbeat migration लागू होना आवश्यक है.
+- Worker heartbeat table migration: `supabase/migrations/20261101150000_add_worker_heartbeats.sql`.
 - `POST /api/v1/admin/sources` — authenticated और CSRF-protected source queue.
 - `POST /api/v1/admin/documents/{document_id}/verify` — reviewer confirmation और कारण सहित document verification.
 - `GET /api/v1/admin/documents/ocr-pending?limit=20&offset=0` — authenticated, paginated OCR backlog.
