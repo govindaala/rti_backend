@@ -100,6 +100,42 @@ function renderDocumentRows(rows) {
   }
 }
 
+
+function formatAge(seconds) {
+  if (seconds == null) return "—";
+  const value = Math.max(0, Number(seconds));
+  if (value < 60) return Math.floor(value) + " सेकंड";
+  if (value < 3600) return Math.floor(value / 60) + " मिनट";
+  return Math.floor(value / 3600) + " घंटे";
+}
+
+async function loadQueueHealth() {
+  const status = document.getElementById("queue-health-status");
+  try {
+    const response = await api("/api/v1/admin/queue-health");
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || "HTTP " + response.status);
+    const labels = { online: "Online", stale: "Heartbeat पुरानी", offline: "Offline", unknown: "अज्ञात" };
+    document.getElementById("worker-process-status").textContent = labels[data.worker_status] || data.worker_status || "अज्ञात";
+    document.getElementById("worker-last-seen").textContent = "Last heartbeat: " +
+      (data.latest_worker_seen_at ? new Date(data.latest_worker_seen_at).toLocaleString() : "अभी उपलब्ध नहीं");
+    document.getElementById("queue-ready-count").textContent = data.queued_ready ?? "—";
+    document.getElementById("queue-delayed-count").textContent = "Delayed: " + (data.queued_delayed ?? "—");
+    document.getElementById("queue-running-count").textContent = data.running ?? "—";
+    document.getElementById("queue-stale-count").textContent = "Stale jobs: " + (data.stale_running ?? "—");
+    document.getElementById("queue-failed-count").textContent = data.failed ?? "—";
+    document.getElementById("queue-oldest-age").textContent = "Oldest ready: " + formatAge(data.oldest_ready_age_seconds);
+    document.getElementById("queue-last-completed").textContent = "Last completed job: " +
+      (data.last_completed_at ? new Date(data.last_completed_at).toLocaleString() : "अभी कोई completed job नहीं");
+    status.textContent = "Queue health: " + (data.queue_health || "unknown") +
+      " | Online workers: " + (data.online_workers ?? "—") +
+      " | Stale workers: " + (data.stale_workers ?? "—");
+  } catch (error) {
+    status.textContent = "Queue health उपलब्ध नहीं: " + error.message +
+      " — worker heartbeat migration लागू है और worker चालू है, यह जाँचें।";
+  }
+}
+
 async function loadDashboard() {
   refreshButton.disabled = true;
   const status = document.getElementById("dashboard-status");
@@ -129,6 +165,7 @@ async function loadDashboard() {
       { key: "status" }, { key: "url", link: "url" }, { key: "discovered" }, { key: "updated_at" }
     ], "अभी कोई crawl job नहीं है।");
     renderDocumentRows(latestDocuments);
+    await loadQueueHealth();
     status.textContent = "Live database आँकड़े अपडेट हुए: " + new Date().toLocaleTimeString();
   } catch (error) { status.textContent = "Live dashboard उपलब्ध नहीं: " + error.message; }
   finally { refreshButton.disabled = false; }
