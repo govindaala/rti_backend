@@ -21,3 +21,6 @@ CREATE INDEX IF NOT EXISTS idx_rti_worker_heartbeats_status_last_seen
     ON rti.worker_heartbeats (status, last_seen_at DESC);
 
 ALTER TABLE rti.worker_heartbeats ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE rti.worker_heartbeats FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE rti.worker_heartbeats TO postgres, service_role;
