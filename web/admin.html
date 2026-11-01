@@ -1,3 +1,5 @@
+<!-- रिपॉजिटरी पथ: rti_backend/web/admin.html -->
+<!-- Repository path: rti_backend/web/admin.html -->
 <!doctype html>
 <html lang="hi">
 <head>
@@ -76,6 +78,19 @@
       <section class="panel">
         <h2>हाल की Crawl गतिविधि</h2>
         <div class="table-scroll"><table><thead><tr><th>स्थिति</th><th>URL</th><th>मिले लिंक</th><th>अपडेट</th></tr></thead><tbody id="recent-jobs"><tr><td colspan="4">लोड हो रहा है...</td></tr></tbody></table></div>
+      </section>
+      <section class="panel">
+        <h2>OCR Pending Queue</h2>
+        <p>सभी OCR-pending दस्तावेज़ पृष्ठों में दिखाए जाते हैं। Retry करने से दस्तावेज़ verified नहीं होगा; मानव समीक्षा आवश्यक है।</p>
+        <div class="table-scroll"><table>
+          <thead><tr><th>दस्तावेज़</th><th>Extraction स्थिति</th><th>अपडेट</th><th>कार्रवाई</th></tr></thead>
+          <tbody id="ocr-pending-documents"><tr><td colspan="4">लोड हो रहा है...</td></tr></tbody>
+        </table></div>
+        <div class="form-actions">
+          <button class="secondary" id="ocr-prev-page" type="button" disabled>पिछला पृष्ठ</button>
+          <button class="secondary" id="ocr-next-page" type="button" disabled>अगला पृष्ठ</button>
+        </div>
+        <p id="ocr-pending-status" class="notice" role="status">OCR backlog लोड हो रहा है...</p>
       </section>
       <section class="panel">
         <h2>हाल में सुरक्षित दस्तावेज़</h2>
