@@ -168,7 +168,7 @@ def extract_pdf_text_with_ocr(raw: bytes, page_count: int, max_pages: int = 20) 
                         image, lang="eng+hin", config="--psm 3", timeout=15
                     )
                 )
-        extracted = "\\n".join(chunks).strip()
+        extracted = "\n".join(chunks).strip()
         return extracted or None
     except Exception:
         # OCR failure must not crash the crawler or silently mark the PDF as extracted.
