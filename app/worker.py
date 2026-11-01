@@ -4,7 +4,9 @@
 import argparse
 import json
 import logging
+import os
 import signal
+import socket
 import sys
 from threading import Event
 
@@ -18,12 +20,33 @@ from app.services.crawler import (classify_document_type, discover_legal_links, 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 LOGGER = logging.getLogger("rti.worker")
 STOP = Event()
+WORKER_ID = f"{socket.gethostname()}:{os.getpid()}"
 
 
 def document_status_for_extraction(ocr_required: bool) -> str:
     """OCR बाकी हो तो दस्तावेज़ को review-ready न मानकर अलग queue state दें."""
     return "needs_ocr" if ocr_required else "review_required"
 
+
+
+def record_worker_heartbeat(status: str = "running") -> None:
+    """Persist process liveness; failures must not stop useful queue processing."""
+    if status not in {"running", "stopped"}:
+        raise ValueError("Worker heartbeat status must be running or stopped")
+    with get_connection() as connection, connection.cursor() as cursor:
+        cursor.execute(
+            """INSERT INTO rti.worker_heartbeats
+                   (worker_id, hostname, process_id, status, started_at, last_seen_at, stopped_at)
+               VALUES (%s, %s, %s, %s, now(), now(),
+                       CASE WHEN %s = 'stopped' THEN now() ELSE NULL END)
+               ON CONFLICT (worker_id) DO UPDATE SET
+                   status = EXCLUDED.status,
+                   last_seen_at = now(),
+                   stopped_at = CASE WHEN EXCLUDED.status = 'stopped'
+                                     THEN now() ELSE NULL END,
+                   updated_at = now()""",
+            (WORKER_ID, socket.gethostname(), os.getpid(), status, status),
+        )
 
 def _retry_delay_seconds(attempts: int) -> int:
     """बार-बार विफल स्रोतों पर exponential backoff लागू करें."""
@@ -492,6 +515,10 @@ def run_worker(poll_seconds: int, idle_seconds: int) -> None:
     LOGGER.info("Continuous crawler worker started")
     while not STOP.is_set():
         try:
+            try:
+                record_worker_heartbeat("running")
+            except (psycopg.Error, RuntimeError):
+                LOGGER.exception("Could not persist worker heartbeat; continuing queue processing")
             recover_stale_jobs()
             processed = process_one()
             if not processed and enqueue_due_source():
@@ -503,6 +530,10 @@ def run_worker(poll_seconds: int, idle_seconds: int) -> None:
         except Exception:
             LOGGER.exception("Worker loop failed; retrying after idle interval")
             STOP.wait(idle_seconds)
+    try:
+        record_worker_heartbeat("stopped")
+    except (psycopg.Error, RuntimeError):
+        LOGGER.exception("Could not persist final worker heartbeat")
     LOGGER.info("Crawler worker stopped cleanly")
 
 
