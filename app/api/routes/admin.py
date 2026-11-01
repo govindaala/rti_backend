@@ -1,3 +1,4 @@
+# रिपॉजिटरी पथ: rti_backend/app/api/routes/admin.py
 """Session-authenticated live operations dashboard and privileged admin APIs."""
 
 import hmac
@@ -141,12 +142,13 @@ def dashboard_summary(request: Request) -> dict:
             ]
             cursor.execute(
                 """SELECT id::text, job_id::text, title, canonical_url, document_type,
-                          status, created_at
+                          status, created_at, ocr_required, extraction_status
                    FROM rti.legal_documents ORDER BY created_at DESC LIMIT 10"""
             )
             recent_documents = [
                 {"id": r[0], "job_id": r[1], "title": r[2], "url": r[3],
-                 "type": r[4], "status": r[5], "created_at": r[6].isoformat()}
+                 "type": r[4], "status": r[5], "created_at": r[6].isoformat(),
+                 "ocr_required": r[7], "extraction_status": r[8]}
                 for r in cursor.fetchall()
             ]
         return {"database": "connected", "sources": sources, "jobs": jobs,
@@ -323,3 +325,97 @@ def verify_legal_document(
         raise
     except psycopg.Error as exc:
         raise HTTPException(status_code=503, detail="Document review service is temporarily unavailable") from exc
+
+
+@router.post(
+    "/admin/documents/{document_id}/retry-ocr",
+    status_code=202,
+    summary="OCR pending दस्तावेज़ को दोबारा queue करें",
+)
+def retry_ocr_document(
+    document_id: str,
+    request: Request,
+    x_csrf_token: str | None = Header(default=None),
+) -> dict:
+    """केवल OCR-pending दस्तावेज़ को फिर से crawl/OCR queue में डालें; verify कभी न करें."""
+    require_admin(request, x_csrf_token)
+    try:
+        with get_connection() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """SELECT d.source_id, d.canonical_url, d.status, d.ocr_required, s.status
+                   FROM rti.legal_documents AS d
+                   JOIN rti.research_sources AS s ON s.id = d.source_id
+                   WHERE d.id = %s
+                   FOR UPDATE OF d, s""",
+                (document_id,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="दस्तावेज़ नहीं मिला")
+            source_id, canonical_url, document_status, ocr_required, source_status = row
+            if document_status != "needs_ocr" or not ocr_required:
+                raise HTTPException(
+                    status_code=409,
+                    detail="केवल needs_ocr स्थिति वाला दस्तावेज़ दोबारा OCR queue में जा सकता है",
+                )
+            if source_status == "paused":
+                raise HTTPException(
+                    status_code=409,
+                    detail="स्रोत paused है; पहले source को resume करें",
+                )
+            cursor.execute(
+                """INSERT INTO rti.crawl_jobs (source_id, status, current_url)
+                   SELECT %s, 'queued', %s
+                   WHERE NOT EXISTS (
+                       SELECT 1 FROM rti.crawl_jobs
+                       WHERE source_id = %s AND current_url = %s
+                         AND status IN ('queued', 'running')
+                   )
+                   RETURNING id::text""",
+                (source_id, canonical_url, source_id, canonical_url),
+            )
+            job = cursor.fetchone()
+            if not job:
+                cursor.execute(
+                    """SELECT id::text FROM rti.crawl_jobs
+                       WHERE source_id = %s AND current_url = %s
+                         AND status IN ('queued', 'running')
+                       ORDER BY created_at DESC LIMIT 1""",
+                    (source_id, canonical_url),
+                )
+                existing = cursor.fetchone()
+                if not existing:
+                    raise HTTPException(
+                        status_code=503,
+                        detail="OCR retry job enqueue नहीं हो सका; कृपया फिर प्रयास करें",
+                    )
+                return {
+                    "accepted": True,
+                    "queued": False,
+                    "document_id": document_id,
+                    "job_id": existing[0],
+                    "message": "इस दस्तावेज़ का crawl पहले से queued या running है",
+                }
+            job_id = job[0]
+            cursor.execute(
+                """UPDATE rti.research_sources
+                   SET status = 'discovering', last_error_code = NULL, updated_at = now()
+                   WHERE id = %s""",
+                (source_id,),
+            )
+            cursor.execute(
+                """INSERT INTO rti.crawl_job_events (job_id, event_type, message)
+                   VALUES (%s, 'ocr_retry_queued', %s)""",
+                (job_id, f"Administrator requested OCR retry for document {document_id}"),
+            )
+        return {
+            "accepted": True,
+            "queued": True,
+            "document_id": document_id,
+            "job_id": job_id,
+            "message": "दस्तावेज़ दोबारा fetch और OCR के लिए queue हुआ; human verification आवश्यक रहेगी",
+        }
+    except HTTPException:
+        raise
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail="OCR retry queue service is unavailable") from exc

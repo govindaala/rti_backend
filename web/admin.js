@@ -1,3 +1,4 @@
+// Repository path: rti_backend/web/admin.js
 "use strict";
 
 const loginPanel = document.getElementById("login-panel");
@@ -78,7 +79,23 @@ function renderDocumentRows(rows) {
         } catch (error) { sourceStatus.textContent = "Verify नहीं हुआ: " + error.message; button.disabled = false; }
       });
       action.append(button);
-    } else action.textContent = "—";
+    } else if (item.status === "needs_ocr" && item.ocr_required === true) {
+      const button = document.createElement("button"); button.type = "button"; button.className = "secondary";
+      button.textContent = "OCR दोबारा चलाएँ";
+      button.addEventListener("click", async () => {
+        if (!window.confirm("इस दस्तावेज़ को फिर से fetch करके OCR queue में डालें? यह कार्रवाई दस्तावेज़ को verified नहीं करेगी।")) return;
+        button.disabled = true;
+        try {
+          const response = await api("/api/v1/admin/documents/" + encodeURIComponent(item.id) + "/retry-ocr", {
+            method: "POST"
+          });
+          const result = await response.json(); if (!response.ok) throw new Error(result.detail || "HTTP " + response.status);
+          sourceStatus.textContent = result.queued ? "OCR retry queue में जोड़ा गया: " + result.job_id : "पहले से queue/running: " + result.job_id;
+          await loadDashboard();
+        } catch (error) { sourceStatus.textContent = "OCR retry नहीं हुआ: " + error.message; button.disabled = false; }
+      });
+      action.append(button);
+    } else action.textContent = item.extraction_status === "needs_ocr" ? "OCR आवश्यक" : "—";
     row.append(action); target.append(row);
   }
 }

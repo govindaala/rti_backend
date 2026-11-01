@@ -164,3 +164,123 @@ def test_admin_dashboard_exposes_live_ocr_backlog_metrics(monkeypatch) -> None:
     assert metrics["ocr_pending_documents"] == 1
     assert metrics["ocr_extracted_documents"] == 1
     assert metrics["empty_text_documents"] == 0
+
+
+def test_ocr_retry_requires_authenticated_session(monkeypatch) -> None:
+    configured_admin(monkeypatch)
+    response = client.post(
+        "/api/v1/admin/documents/00000000-0000-0000-0000-000000000001/retry-ocr",
+    )
+    assert response.status_code == 401
+
+
+def test_ocr_retry_queues_only_eligible_document_and_never_verifies(monkeypatch) -> None:
+    configured = replace(
+        admin_routes.settings,
+        admin_id="root",
+        admin_pass="test-password",
+        admin_session_secret="x" * 48,
+        database_url="postgresql://test.invalid/db",
+    )
+    monkeypatch.setattr(admin_auth, "settings", configured)
+    monkeypatch.setattr(admin_routes, "settings", configured)
+
+    class FakeCursor:
+        def __init__(self) -> None:
+            self.query_log = []
+            self.fetchone_results = iter([
+                ("source-id", "https://cic.gov.in/orders/123.pdf", "needs_ocr", True, "completed"),
+                ("job-id",),
+            ])
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, query, params=None) -> None:
+            self.query_log.append((query, params))
+
+        def fetchone(self):
+            return next(self.fetchone_results)
+
+    class FakeConnection:
+        def __init__(self) -> None:
+            self.fake_cursor = FakeCursor()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return self.fake_cursor
+
+    connection = FakeConnection()
+    monkeypatch.setattr(admin_routes, "get_connection", lambda: connection)
+    client.cookies.clear()
+    login = client.post(
+        "/api/v1/admin/auth/login",
+        json={"admin_id": "root", "admin_pass": "test-password"},
+    )
+    response = client.post(
+        "/api/v1/admin/documents/00000000-0000-0000-0000-000000000001/retry-ocr",
+        headers={"X-CSRF-Token": login.json()["csrf_token"]},
+    )
+
+    assert response.status_code == 202
+    assert response.json()["queued"] is True
+    assert response.json()["job_id"] == "job-id"
+    assert "verified" not in response.json()
+    queries = " ".join(query for query, _ in connection.fake_cursor.query_log)
+    assert "ocr_retry_queued" in queries
+    assert "SET status = 'discovering'" in queries
+
+
+def test_ocr_retry_rejects_documents_not_waiting_for_ocr(monkeypatch) -> None:
+    configured = replace(
+        admin_routes.settings,
+        admin_id="root",
+        admin_pass="test-password",
+        admin_session_secret="x" * 48,
+        database_url="postgresql://test.invalid/db",
+    )
+    monkeypatch.setattr(admin_auth, "settings", configured)
+    monkeypatch.setattr(admin_routes, "settings", configured)
+
+    class FakeCursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, _query, _params=None):
+            return None
+
+        def fetchone(self):
+            return ("source-id", "https://cic.gov.in/orders/123.pdf", "review_required", False, "completed")
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return FakeCursor()
+
+    monkeypatch.setattr(admin_routes, "get_connection", lambda: FakeConnection())
+    client.cookies.clear()
+    login = client.post(
+        "/api/v1/admin/auth/login",
+        json={"admin_id": "root", "admin_pass": "test-password"},
+    )
+    response = client.post(
+        "/api/v1/admin/documents/00000000-0000-0000-0000-000000000001/retry-ocr",
+        headers={"X-CSRF-Token": login.json()["csrf_token"]},
+    )
+    assert response.status_code == 409
