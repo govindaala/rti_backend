@@ -426,3 +426,53 @@ def test_ocr_pending_list_uses_bounded_pagination(monkeypatch) -> None:
     assert data["offset"] == 10
     assert data["items"][0]["status"] == "needs_ocr"
     assert data["items"][0]["ocr_required"] is True
+
+
+def test_queue_health_flags_ready_jobs_when_worker_heartbeat_is_stale(monkeypatch) -> None:
+    configured = replace(
+        admin_routes.settings,
+        admin_id="root",
+        admin_pass="test-password",
+        admin_session_secret="x" * 48,
+        database_url="postgresql://test.invalid/db",
+    )
+    monkeypatch.setattr(admin_auth, "settings", configured)
+    monkeypatch.setattr(admin_routes, "settings", configured)
+
+    class FakeCursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, _query, _params=None):
+            return None
+
+        def fetchone(self):
+            from datetime import UTC, datetime
+            return (2, 0, 0, 0, 0, 30, None, None, 0, 1, datetime(2026, 11, 1, tzinfo=UTC))
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return FakeCursor()
+
+    monkeypatch.setattr(admin_routes, "get_connection", lambda: FakeConnection())
+    client.cookies.clear()
+    login = client.post(
+        "/api/v1/admin/auth/login",
+        json={"admin_id": "root", "admin_pass": "test-password"},
+    )
+    assert login.status_code == 200
+    response = client.get("/api/v1/admin/queue-health")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["worker_status"] == "stale"
+    assert payload["queue_health"] == "attention"
+    assert payload["queued_ready"] == 2
