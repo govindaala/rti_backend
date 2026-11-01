@@ -32,6 +32,7 @@ uvicorn app.main:app --reload
 - `GET /api/v1/admin/dashboard` — authenticated live source/job/document metrics.
 - `POST /api/v1/admin/sources` — authenticated और CSRF-protected source queue.
 - `POST /api/v1/admin/documents/{document_id}/verify` — reviewer confirmation और कारण सहित document verification.
+- `POST /api/v1/admin/documents/{document_id}/retry-ocr` — केवल `needs_ocr` documents को authenticated/CSRF-protected retry queue में डालें; verification नहीं करता.
 - `POST /api/v1/research/search` — केवल `verified` legal documents में खोज.
 - `POST /api/v1/analysis/checklist` — Applicant/PIO के लिए नियम-आधारित प्रारंभिक checklist.
 - `POST /api/v1/drafts/rti` — हिन्दी/English RTI आवेदन मसौदा; कोई auto-submit नहीं.
@@ -84,9 +85,12 @@ Schema changes `supabase/migrations/` में version-controlled हैं। 
 Local execution:
 
 ```bash
+python -m app.worker --check
 python -m app.worker --once
 python -m app.worker --poll
 ```
+
+`python -m app.worker --check` database schema और OCR के लिए `eng`/`hin` Tesseract languages की readiness JSON में दिखाता है। Database/schema check fail होने पर exit code non-zero है; OCR unavailable होने पर warning देता है ताकि HTML/text PDF crawling फिर भी चल सके.
 
 `render.yaml` में अलग Render Background Worker परिभाषित है। यह Starter plan पर है और इसका recurring paid compute charge होगा। मौजूदा web service Free plan पर है; idle होने पर sleep करती है और 24×7 worker का विकल्प नहीं है।
 
