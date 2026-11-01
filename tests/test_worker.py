@@ -109,3 +109,11 @@ def test_recover_stale_jobs_uses_database_lease_timeout(monkeypatch) -> None:
     assert connection.fake_cursor.params == (90,)
     assert "WORKER_LEASE_EXPIRED" in connection.fake_cursor.query
     assert "status = 'running'" in connection.fake_cursor.query
+
+
+def test_ocr_required_document_is_not_marked_review_ready() -> None:
+    assert worker.document_status_for_extraction(True) == "needs_ocr"
+
+
+def test_text_extracted_document_remains_human_review_required() -> None:
+    assert worker.document_status_for_extraction(False) == "review_required"
