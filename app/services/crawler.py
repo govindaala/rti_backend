@@ -72,7 +72,7 @@ def discover_legal_links(html: str, base_url: str, limit: int = 25) -> list[str]
             continue
         path = f"{parsed.path} {parsed.query}".lower()
         searchable = f"{path} {anchor_text}".lower()
-        is_pdf = path.endswith(".pdf")
+        is_pdf = path.endswith(".pdf") or "pdf" in anchor_text.lower()
         is_legal_page = any(hint in searchable for hint in LEGAL_PATH_HINTS)
         is_pagination = (
             "page=" in parsed.query.lower()
