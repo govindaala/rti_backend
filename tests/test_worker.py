@@ -1,4 +1,8 @@
+# रिपॉजिटरी पथ: rti_backend/tests/test_worker.py
 """Continuous worker loop और graceful stop के unit tests."""
+
+import sys
+from types import SimpleNamespace
 
 import httpx
 
@@ -117,3 +121,110 @@ def test_ocr_required_document_is_not_marked_review_ready() -> None:
 
 def test_text_extracted_document_remains_human_review_required() -> None:
     assert worker.document_status_for_extraction(False) == "review_required"
+
+
+def test_preflight_fails_when_database_url_is_missing(monkeypatch) -> None:
+    monkeypatch.setattr(worker, "settings", SimpleNamespace(database_url=None))
+    monkeypatch.setattr(
+        worker,
+        "get_connection",
+        lambda: (_ for _ in ()).throw(AssertionError("database should not be opened")),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "pytesseract",
+        SimpleNamespace(get_languages=lambda config="": ["eng", "hin"]),
+    )
+
+    report = worker.preflight()
+
+    assert report["ok"] is False
+    assert report["database_configured"] is False
+    assert "DATABASE_URL is not configured" in report["errors"]
+
+
+def test_preflight_checks_required_schema_and_ocr_languages(monkeypatch) -> None:
+    class FakeCursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, _query, _params=None):
+            return None
+
+        def fetchone(self):
+            return (True, True, True, True, True, True)
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return FakeCursor()
+
+    monkeypatch.setattr(
+        worker, "settings", SimpleNamespace(database_url="postgresql://test.invalid/db")
+    )
+    monkeypatch.setattr(worker, "get_connection", lambda: FakeConnection())
+    monkeypatch.setitem(
+        sys.modules,
+        "pytesseract",
+        SimpleNamespace(get_languages=lambda config="": ["eng", "hin"]),
+    )
+
+    report = worker.preflight()
+
+    assert report["ok"] is True
+    assert report["database_schema_ready"] is True
+    assert report["ocr_ready"] is True
+    assert report["missing_ocr_languages"] == []
+
+
+def test_preflight_keeps_worker_usable_when_ocr_runtime_is_missing(monkeypatch) -> None:
+    class FakeCursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, _query, _params=None):
+            return None
+
+        def fetchone(self):
+            return (True, True, True, True, True, True)
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return FakeCursor()
+
+    def missing_tesseract(config=""):
+        raise RuntimeError("tesseract binary missing")
+
+    monkeypatch.setattr(
+        worker, "settings", SimpleNamespace(database_url="postgresql://test.invalid/db")
+    )
+    monkeypatch.setattr(worker, "get_connection", lambda: FakeConnection())
+    monkeypatch.setitem(
+        sys.modules,
+        "pytesseract",
+        SimpleNamespace(get_languages=missing_tesseract),
+    )
+
+    report = worker.preflight()
+
+    assert report["ok"] is True
+    assert report["database_schema_ready"] is True
+    assert report["ocr_ready"] is False
+    assert report["warnings"]
