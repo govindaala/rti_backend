@@ -3,6 +3,7 @@
 
 import hashlib
 import io
+import logging
 import re
 import xml.etree.ElementTree as ET
 from html import unescape
@@ -14,6 +15,8 @@ import httpx
 from pypdf import PdfReader
 
 from app.services.source_registry import is_official_source_url
+
+LOGGER = logging.getLogger(__name__)
 
 USER_AGENT = "RTI-ResearchBot/0.2 (+respectful public legal research)"
 LEGAL_PATH_HINTS = (
@@ -145,6 +148,34 @@ def extraction_status_for_text(text: str, content_type: str) -> tuple[bool, str]
     return False, "extracted"
 
 
+def extract_pdf_text_with_ocr(raw: bytes, page_count: int, max_pages: int = 20) -> str | None:
+    """OCR के लिए सीमित पृष्ठ render करें; अनुपलब्ध/विफल engine पर सुरक्षित fallback दें."""
+    if page_count < 1 or page_count > max_pages:
+        return None
+
+    try:
+        import fitz
+        import pytesseract
+        from PIL import Image
+
+        chunks: list[str] = []
+        with fitz.open(stream=raw, filetype="pdf") as document:
+            for page in document:
+                pixmap = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False)
+                image = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
+                chunks.append(
+                    pytesseract.image_to_string(
+                        image, lang="eng+hin", config="--psm 3", timeout=15
+                    )
+                )
+        extracted = "\\n".join(chunks).strip()
+        return extracted or None
+    except Exception:
+        # OCR failure must not crash the crawler or silently mark the PDF as extracted.
+        LOGGER.exception("Bounded OCR attempt failed; document remains needs_ocr")
+        return None
+
+
 def classify_document_type(url: str, title: str, text: str = "") -> str:
     """URL/title hints से document type का preliminary label दें."""
     sample = f"{url} {title} {text[:1000]}".lower()
@@ -236,9 +267,12 @@ def fetch_document(
         if pages > 500:
             raise ValueError("PDF exceeds the 500-page extraction limit")
         text = "\n".join(page.extract_text() or "" for page in reader.pages)
-        # Scanned PDFs may contain page images but no selectable text. Never mark them as
-        # successfully extracted; downstream processing can route them to an OCR worker.
         ocr_required, extraction_status = extraction_status_for_text(text, content_type)
+        if ocr_required:
+            ocr_text = extract_pdf_text_with_ocr(raw, pages)
+            if ocr_text:
+                text = ocr_text
+                ocr_required, extraction_status = False, "extracted_ocr"
         kind = "pdf"
         title = (reader.metadata.title if reader.metadata else None) or safe_url.rsplit("/", 1)[-1]
     else:
