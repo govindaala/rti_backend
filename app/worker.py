@@ -18,6 +18,11 @@ LOGGER = logging.getLogger("rti.worker")
 STOP = Event()
 
 
+def document_status_for_extraction(ocr_required: bool) -> str:
+    """OCR बाकी हो तो दस्तावेज़ को review-ready न मानकर अलग queue state दें."""
+    return "needs_ocr" if ocr_required else "review_required"
+
+
 def _retry_delay_seconds(attempts: int) -> int:
     """बार-बार विफल स्रोतों पर exponential backoff लागू करें."""
     return min(30 * (2 ** min(max(attempts - 1, 0), 6)), 1800)
@@ -223,8 +228,9 @@ def process_one() -> bool:
                 """
                 INSERT INTO rti.legal_documents
                     (source_id, job_id, canonical_url, title, document_type,
-                     content_type, extracted_text, content_sha256, page_count, status)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'review_required')
+                     content_type, extracted_text, content_sha256, page_count,
+                     extraction_status, ocr_required, status)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 ON CONFLICT (canonical_url) DO UPDATE SET
                     source_id=EXCLUDED.source_id,
                     job_id=EXCLUDED.job_id,
@@ -232,20 +238,28 @@ def process_one() -> bool:
                     extracted_text=EXCLUDED.extracted_text,
                     content_type=EXCLUDED.content_type,
                     page_count=EXCLUDED.page_count,
+                    extraction_status=EXCLUDED.extraction_status,
+                    ocr_required=EXCLUDED.ocr_required,
                     status=CASE
+                        WHEN EXCLUDED.ocr_required THEN 'needs_ocr'
+                        WHEN rti.legal_documents.status = 'needs_ocr'
+                             AND EXCLUDED.extraction_status IN ('extracted', 'extracted_ocr')
+                        THEN 'review_required'
                         WHEN rti.legal_documents.content_sha256
                              IS DISTINCT FROM EXCLUDED.content_sha256
                         THEN 'review_required'
                         ELSE rti.legal_documents.status
                     END,
                     review_note=CASE
-                        WHEN rti.legal_documents.content_sha256
+                        WHEN EXCLUDED.ocr_required OR
+                             rti.legal_documents.content_sha256
                              IS DISTINCT FROM EXCLUDED.content_sha256
                         THEN NULL
                         ELSE rti.legal_documents.review_note
                     END,
                     verified_at=CASE
-                        WHEN rti.legal_documents.content_sha256
+                        WHEN EXCLUDED.ocr_required OR
+                             rti.legal_documents.content_sha256
                              IS DISTINCT FROM EXCLUDED.content_sha256
                         THEN NULL
                         ELSE rti.legal_documents.verified_at
@@ -257,7 +271,8 @@ def process_one() -> bool:
                     source_id, job_id, result["final_url"], result["title"],
                     classify_document_type(url, result["title"], result["text"]),
                     result["content_type"], result["text"], result["content_sha256"],
-                    result["page_count"],
+                    result["page_count"], result["extraction_status"], result["ocr_required"],
+                    document_status_for_extraction(result["ocr_required"]),
                 ),
             )
 
@@ -309,7 +324,15 @@ def process_one() -> bool:
                 INSERT INTO rti.crawl_job_events(job_id,event_type,message)
                 VALUES(%s,'completed',%s)
                 """,
-                (job_id, f"Extracted document; queued {queued_links} allowlisted official legal, pagination and sitemap links; human review required"),
+                (
+                    job_id,
+                    (
+                        "Fetched document; OCR remains required; "
+                        if result["ocr_required"]
+                        else "Extracted document; "
+                    )
+                    + f"queued {queued_links} allowlisted official legal, pagination and sitemap links; human review required",
+                ),
             )
             cursor.execute(
                 """

@@ -123,6 +123,13 @@ def dashboard_summary(request: Request) -> dict:
             )
             read_documents, decision_documents, extracted_bytes = cursor.fetchone()
             cursor.execute(
+                """SELECT count(*) FILTER (WHERE ocr_required = true AND status = 'needs_ocr'),
+                          count(*) FILTER (WHERE extraction_status = 'extracted_ocr'),
+                          count(*) FILTER (WHERE extraction_status = 'empty_text')
+                   FROM rti.legal_documents"""
+            )
+            ocr_pending, ocr_extracted, empty_text_documents = cursor.fetchone()
+            cursor.execute(
                 """SELECT j.id::text, j.status, j.current_url, j.discovered_count,
                           j.processed_count, j.failed_count, j.updated_at
                    FROM rti.crawl_jobs j ORDER BY j.updated_at DESC LIMIT 10"""
@@ -148,6 +155,9 @@ def dashboard_summary(request: Request) -> dict:
                 "metrics": {"read_documents": read_documents,
                             "decision_documents": decision_documents,
                             "extracted_text_bytes": extracted_bytes,
+                            "ocr_pending_documents": ocr_pending,
+                            "ocr_extracted_documents": ocr_extracted,
+                            "empty_text_documents": empty_text_documents,
                             "default_catalog_entries": len(DEFAULT_SOURCE_CATALOG),
                             "related_law_entries": len(RELATED_LAW_DISCOVERY)}}
     except (psycopg.Error, RuntimeError):

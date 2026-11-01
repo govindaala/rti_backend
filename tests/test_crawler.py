@@ -1,6 +1,9 @@
 # रिपॉजिटरी पथ: rti_backend/tests/test_crawler.py
 """Crawler URL policy और redirect सुरक्षा के परीक्षण."""
 
+import sys
+from types import SimpleNamespace
+
 import pytest
 
 from app.services.crawler import (
@@ -8,6 +11,7 @@ from app.services.crawler import (
     classify_document_type,
     discover_legal_links,
     extraction_status_for_text,
+    extract_pdf_text_with_ocr,
     extract_html_text,
 )
 
@@ -85,3 +89,50 @@ def test_text_pdf_does_not_require_ocr() -> None:
 
 def test_empty_html_is_not_mislabelled_as_ocr_candidate() -> None:
     assert extraction_status_for_text("", "text/html") == (False, "empty_text")
+
+
+def test_ocr_refuses_pdfs_above_the_page_limit() -> None:
+    assert extract_pdf_text_with_ocr(b"pdf-bytes", page_count=21, max_pages=20) is None
+
+
+def test_ocr_extracts_text_when_rendering_and_tesseract_succeed(monkeypatch) -> None:
+    class FakePage:
+        def get_pixmap(self, **kwargs):
+            return SimpleNamespace(width=2, height=2, samples=b"0123456789ab")
+
+    class FakeDocument:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def __iter__(self):
+            return iter([FakePage()])
+
+    fake_fitz = SimpleNamespace(
+        open=lambda **_kwargs: FakeDocument(),
+        Matrix=lambda *_args: object(),
+    )
+    fake_tesseract = SimpleNamespace(
+        image_to_string=lambda _image, **_kwargs: "Scanned legal text"
+    )
+    fake_image = SimpleNamespace(frombytes=lambda *_args: object())
+    monkeypatch.setitem(sys.modules, "fitz", fake_fitz)
+    monkeypatch.setitem(sys.modules, "pytesseract", fake_tesseract)
+    monkeypatch.setitem(sys.modules, "PIL", SimpleNamespace(Image=fake_image))
+
+    assert extract_pdf_text_with_ocr(b"pdf-bytes", page_count=1) == "Scanned legal text"
+
+
+def test_ocr_runtime_failure_returns_none_for_manual_or_later_retry(monkeypatch) -> None:
+    def fail_open(**_kwargs):
+        raise RuntimeError("OCR runtime unavailable")
+
+    monkeypatch.setitem(sys.modules, "fitz", SimpleNamespace(open=fail_open))
+    monkeypatch.setitem(
+        sys.modules, "pytesseract", SimpleNamespace(image_to_string=lambda *_args, **_kwargs: "")
+    )
+    monkeypatch.setitem(sys.modules, "PIL", SimpleNamespace(Image=SimpleNamespace()))
+
+    assert extract_pdf_text_with_ocr(b"pdf-bytes", page_count=1) is None
