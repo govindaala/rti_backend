@@ -32,6 +32,8 @@ uvicorn app.main:app --reload
 - `GET /api/v1/admin/dashboard` — authenticated live source/job/document metrics.
 - `POST /api/v1/admin/sources` — authenticated और CSRF-protected source queue.
 - `POST /api/v1/admin/documents/{document_id}/verify` — reviewer confirmation और कारण सहित document verification.
+- `GET /api/v1/admin/documents/ocr-pending?limit=20&offset=0` — authenticated, paginated OCR backlog.
+- `POST /api/v1/admin/documents/{document_id}/retry-ocr` — केवल `needs_ocr` documents को authenticated/CSRF-protected retry queue में डालें; verification नहीं करता.
 - `POST /api/v1/research/search` — केवल `verified` legal documents में खोज.
 - `POST /api/v1/analysis/checklist` — Applicant/PIO के लिए नियम-आधारित प्रारंभिक checklist.
 - `POST /api/v1/drafts/rti` — हिन्दी/English RTI आवेदन मसौदा; कोई auto-submit नहीं.
