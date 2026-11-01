@@ -123,3 +123,16 @@ def test_ocr_extracts_text_when_rendering_and_tesseract_succeed(monkeypatch) -> 
     monkeypatch.setitem(sys.modules, "PIL", SimpleNamespace(Image=fake_image))
 
     assert extract_pdf_text_with_ocr(b"pdf-bytes", page_count=1) == "Scanned legal text"
+
+
+def test_ocr_runtime_failure_returns_none_for_manual_or_later_retry(monkeypatch) -> None:
+    def fail_open(**_kwargs):
+        raise RuntimeError("OCR runtime unavailable")
+
+    monkeypatch.setitem(sys.modules, "fitz", SimpleNamespace(open=fail_open))
+    monkeypatch.setitem(
+        sys.modules, "pytesseract", SimpleNamespace(image_to_string=lambda *_args, **_kwargs: "")
+    )
+    monkeypatch.setitem(sys.modules, "PIL", SimpleNamespace(Image=SimpleNamespace()))
+
+    assert extract_pdf_text_with_ocr(b"pdf-bytes", page_count=1) is None
