@@ -122,7 +122,7 @@ def test_admin_dashboard_exposes_live_ocr_backlog_metrics(monkeypatch) -> None:
                 [],
                 [],
             ])
-            self.fetchone_results = iter([(2, 1, 123), (1, 1, 0)])
+            self.fetchone_results = iter([(2, 1, 123), (1, 1, 0), (0, 0, 0, 0), (0,)])
 
         def __enter__(self):
             return self
@@ -165,6 +165,10 @@ def test_admin_dashboard_exposes_live_ocr_backlog_metrics(monkeypatch) -> None:
     assert metrics["ocr_pending_documents"] == 1
     assert metrics["ocr_extracted_documents"] == 1
     assert metrics["empty_text_documents"] == 0
+    assert metrics["daily_documents_found"] == 0
+    assert metrics["daily_documents_read"] == 0
+    assert metrics["daily_preliminary_analyses"] == 0
+    assert metrics["daily_failed_jobs"] == 0
 
 
 def test_ocr_retry_requires_authenticated_session(monkeypatch) -> None:
