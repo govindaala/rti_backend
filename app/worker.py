@@ -476,6 +476,7 @@ def preflight() -> dict:
                            to_regclass('rti.crawl_jobs') IS NOT NULL,
                            to_regclass('rti.legal_documents') IS NOT NULL,
                            to_regclass('rti.crawl_job_events') IS NOT NULL,
+                           to_regclass('rti.worker_heartbeats') IS NOT NULL,
                            EXISTS (SELECT 1 FROM information_schema.columns
                                    WHERE table_schema='rti' AND table_name='legal_documents'
                                      AND column_name='extraction_status'),
