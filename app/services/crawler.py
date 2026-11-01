@@ -4,6 +4,7 @@
 import hashlib
 import io
 import re
+import xml.etree.ElementTree as ET
 from html import unescape
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit
@@ -16,7 +17,7 @@ from app.services.source_registry import is_official_source_url
 
 USER_AGENT = "RTI-ResearchBot/0.2 (+respectful public legal research)"
 LEGAL_PATH_HINTS = (
-    "judgment", "judgements", "judgements", "judgement", "order", "orders",
+    "judgment", "judgements", "judgement", "decision", "decisions", "order", "orders",
     "decision", "case", "court", "circular", "notification", "gazette",
     "act", "rules", "regulation", "tribunal", "commission", "cause-list",
 )
@@ -66,7 +67,7 @@ def discover_legal_links(html: str, base_url: str, limit: int = 25) -> list[str]
     for href, anchor_text in parser.links:
         candidate = urljoin(base_url, href).split("#", 1)[0]
         parsed = urlsplit(candidate)
-        if parsed.scheme != "https" or parsed.hostname != base.hostname:
+        if parsed.scheme != "https" or not parsed.hostname:
             continue
         if not is_official_source_url(candidate):
             continue
@@ -74,7 +75,13 @@ def discover_legal_links(html: str, base_url: str, limit: int = 25) -> list[str]
         searchable = f"{path} {anchor_text}".lower()
         is_pdf = path.endswith(".pdf")
         is_legal_page = any(hint in searchable for hint in LEGAL_PATH_HINTS)
-        if not (is_pdf or is_legal_page):
+        is_pagination = (
+            "page=" in parsed.query.lower()
+            or "paged=" in parsed.query.lower()
+            or bool(re.search(r"/page/\d+/?$", parsed.path.lower()))
+            or bool(re.search(r"\b(next|older|अगला|अगले)\b", searchable))
+        )
+        if not (is_pdf or is_legal_page or is_pagination):
             continue
         normalized = candidate.rstrip("/")
         if normalized == base_url.rstrip("/") or normalized in seen:
@@ -84,6 +91,47 @@ def discover_legal_links(html: str, base_url: str, limit: int = 25) -> list[str]
         if len(results) >= limit:
             break
     return results
+
+
+
+def discover_sitemap_links(
+    base_url: str, timeout_seconds: int = 20, max_urls: int = 100, max_sitemaps: int = 5
+) -> list[str]:
+    """Robots-compliant sitemap discovery across allowlisted official government hosts."""
+    safe_base = _safe_url(base_url)
+    if not _robots_allows(safe_base, timeout_seconds):
+        return []
+    parsed = urlsplit(safe_base)
+    candidates = [f"{parsed.scheme}://{parsed.netloc}/sitemap.xml", f"{parsed.scheme}://{parsed.netloc}/sitemap_index.xml"]
+    visited: set[str] = set()
+    discovered: list[str] = []
+    headers = {"User-Agent": USER_AGENT, "Accept": "application/xml,text/xml,*/*"}
+    with httpx.Client(timeout=timeout_seconds, follow_redirects=False, headers=headers) as client:
+        while candidates and len(visited) < max_sitemaps and len(discovered) < max_urls:
+            sitemap_url = candidates.pop(0)
+            if sitemap_url in visited or not is_official_source_url(sitemap_url):
+                continue
+            visited.add(sitemap_url)
+            try:
+                response = client.get(sitemap_url)
+                if response.status_code != 200 or len(response.content) > 2_000_000:
+                    continue
+                root = ET.fromstring(response.content)
+            except (httpx.HTTPError, ET.ParseError, ValueError):
+                continue
+            for node in root.iter():
+                if node.tag.rsplit("}", 1)[-1].lower() != "loc" or not node.text:
+                    continue
+                loc = node.text.strip()
+                if urlsplit(loc).scheme != "https" or not is_official_source_url(loc):
+                    continue
+                if loc.lower().endswith(".xml") and len(visited) + len(candidates) < max_sitemaps:
+                    candidates.append(loc)
+                elif loc not in discovered:
+                    discovered.append(loc)
+                    if len(discovered) >= max_urls:
+                        break
+    return discovered
 
 
 def classify_document_type(url: str, title: str, text: str = "") -> str:
