@@ -2,6 +2,7 @@
 """Admin login/session, dashboard authorization, and privileged API security tests."""
 
 from dataclasses import replace
+from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
@@ -284,3 +285,67 @@ def test_ocr_retry_rejects_documents_not_waiting_for_ocr(monkeypatch) -> None:
         headers={"X-CSRF-Token": login.json()["csrf_token"]},
     )
     assert response.status_code == 409
+
+
+def test_ocr_pending_list_requires_authenticated_session(monkeypatch) -> None:
+    configured_admin(monkeypatch)
+    response = client.get("/api/v1/admin/documents/ocr-pending")
+    assert response.status_code == 401
+
+
+def test_ocr_pending_list_uses_bounded_pagination(monkeypatch) -> None:
+    configured = replace(
+        admin_routes.settings,
+        admin_id="root",
+        admin_pass="test-password",
+        admin_session_secret="x" * 48,
+        database_url="postgresql://test.invalid/db",
+    )
+    monkeypatch.setattr(admin_auth, "settings", configured)
+    monkeypatch.setattr(admin_routes, "settings", configured)
+
+    class FakeCursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, query, params=None):
+            assert "ocr_required = true AND status = 'needs_ocr'" in query
+            assert params == (3, 10)
+
+        def fetchall(self):
+            stamp = datetime(2026, 11, 1, tzinfo=UTC)
+            return [
+                ("doc-1", "Scanned order A", "https://cic.gov.in/a.pdf", "needs_ocr", stamp),
+                ("doc-2", "Scanned order B", "https://cic.gov.in/b.pdf", "needs_ocr", stamp),
+                ("doc-3", "Scanned order C", "https://cic.gov.in/c.pdf", "needs_ocr", stamp),
+            ]
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return FakeCursor()
+
+    monkeypatch.setattr(admin_routes, "get_connection", lambda: FakeConnection())
+    client.cookies.clear()
+    login = client.post(
+        "/api/v1/admin/auth/login",
+        json={"admin_id": "root", "admin_pass": "test-password"},
+    )
+    response = client.get("/api/v1/admin/documents/ocr-pending?limit=2&offset=10")
+
+    assert login.status_code == 200
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 2
+    assert data["has_more"] is True
+    assert data["offset"] == 10
+    assert data["items"][0]["status"] == "needs_ocr"
+    assert data["items"][0]["ocr_required"] is True
