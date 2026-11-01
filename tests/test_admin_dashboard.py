@@ -317,7 +317,7 @@ def test_queue_health_reports_stalled_jobs(monkeypatch) -> None:
 
         def fetchone(self):
             from datetime import UTC, datetime
-            return (3, 1, 2, 1, 4, 1800, datetime(2026, 11, 1, tzinfo=UTC), None)
+            return (3, 1, 2, 1, 4, 1800, datetime(2026, 11, 1, tzinfo=UTC), None, 1, 0, datetime(2026, 11, 1, tzinfo=UTC))
 
     class FakeConnection:
         def __enter__(self):
@@ -346,6 +346,9 @@ def test_queue_health_reports_stalled_jobs(monkeypatch) -> None:
     assert payload["stale_running"] == 1
     assert payload["oldest_ready_age_seconds"] == 1800
     assert payload["failed"] == 4
+    assert payload["worker_status"] == "online"
+    assert payload["online_workers"] == 1
+    assert payload["stale_workers"] == 0
 
 
 def test_queue_health_marks_empty_queue_idle_without_database(monkeypatch) -> None:
