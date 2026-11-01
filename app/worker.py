@@ -17,6 +17,8 @@ from app.core.config import settings
 from app.core.database import get_connection
 from app.services.crawler import (classify_document_type, discover_legal_links, discover_sitemap_links, fetch_document)
 from app.services.decision_metadata import extract_decision_metadata
+from app.services.legal_decision_analyzer import analyze_decision_text
+from psycopg.types.json import Jsonb
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 LOGGER = logging.getLogger("rti.worker")
@@ -241,6 +243,7 @@ def process_one(allowed_source_ids: list[str] | None = None) -> bool:
             max_bytes=settings.crawler_max_bytes,
         )
         metadata = extract_decision_metadata(result["final_url"], result["title"], result["text"])
+        analysis = analyze_decision_text(result["text"], result["final_url"])
         child_links = []
         if result["document_type"] == "html" and result["html"]:
             child_links.extend(
@@ -264,8 +267,9 @@ def process_one(allowed_source_ids: list[str] | None = None) -> bool:
                     (source_id, job_id, canonical_url, title, document_type,
                      content_type, extracted_text, content_sha256, page_count,
                      extraction_status, ocr_required, status, decision_date,
-                     court_name, case_number, read_at, analysis_status)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,now(),%s)
+                     court_name, case_number, read_at, analysis_status, learned_summary,
+                     legal_issue, holding, cited_sections, key_paragraphs, analysis_method, analyzed_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,now(),%s,%s,%s,%s,%s,%s,%s,%s,CASE WHEN %s THEN now() ELSE NULL END)
                 ON CONFLICT (canonical_url) DO UPDATE SET
                     source_id=EXCLUDED.source_id,
                     job_id=EXCLUDED.job_id,
@@ -305,9 +309,13 @@ def process_one(allowed_source_ids: list[str] | None = None) -> bool:
                     case_number=EXCLUDED.case_number,
                     read_at=now(),
                     analysis_status=EXCLUDED.analysis_status,
-                    learned_summary=CASE WHEN rti.legal_documents.content_sha256 IS DISTINCT FROM EXCLUDED.content_sha256 THEN NULL ELSE rti.legal_documents.learned_summary END,
-                    legal_issue=CASE WHEN rti.legal_documents.content_sha256 IS DISTINCT FROM EXCLUDED.content_sha256 THEN NULL ELSE rti.legal_documents.legal_issue END,
-                    holding=CASE WHEN rti.legal_documents.content_sha256 IS DISTINCT FROM EXCLUDED.content_sha256 THEN NULL ELSE rti.legal_documents.holding END,
+                    learned_summary=EXCLUDED.learned_summary,
+                    legal_issue=EXCLUDED.legal_issue,
+                    holding=EXCLUDED.holding,
+                    cited_sections=EXCLUDED.cited_sections,
+                    key_paragraphs=EXCLUDED.key_paragraphs,
+                    analysis_method=EXCLUDED.analysis_method,
+                    analyzed_at=EXCLUDED.analyzed_at,
                     updated_at=now()
                 """,
                 (
@@ -317,7 +325,9 @@ def process_one(allowed_source_ids: list[str] | None = None) -> bool:
                     result["page_count"], result["extraction_status"], result["ocr_required"],
                     document_status_for_extraction(result["ocr_required"]),
                     metadata["decision_date"], metadata["court_name"], metadata["case_number"],
-                    "text_unavailable" if not result["text"].strip() else "pending_ai",
+                    analysis["analysis_status"], analysis["learned_summary"], analysis["legal_issue"],
+                    analysis["holding"], analysis["cited_sections"], Jsonb(analysis["key_paragraphs"]),
+                    analysis["analysis_method"], analysis["analyzed"],
                 ),
             )
 
