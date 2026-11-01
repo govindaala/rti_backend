@@ -64,7 +64,7 @@ Supabase project के private `rti` schema में मुख्य tables:
 - `rti.legal_documents`
 - `rti.crawl_job_events`
 
-Schema changes `supabase/migrations/` में version-controlled हैं। Connected project में recovery/review migration लागू की गई है। `rti` schema को browser के `anon` या `authenticated` roles के लिए expose न करें; backend के server-side database role से ही access दें। RLS enabled रहना चाहिए।
+Schema changes `supabase/migrations/` में version-controlled हैं। OCR states के लिए `supabase/migrations/20261101133000_add_ocr_extraction_state.sql` को connected Supabase project में लागू करना आवश्यक है; GitHub में migration file होने से production database अपने-आप update नहीं होता। `rti` schema को browser के `anon` या `authenticated` roles के लिए expose न करें; backend के server-side database role से ही access दें। RLS enabled रहना चाहिए।
 
 पहले साझा किया गया database password सुरक्षित नहीं माना जाना चाहिए; उसे Supabase में rotate करके ही नई `DATABASE_URL` बनाएं। Production में least-privilege database role और tested backup/restore प्रक्रिया आवश्यक है।
 
@@ -74,7 +74,7 @@ Schema changes `supabase/migrations/` में version-controlled हैं। 
 - Source और crawl job PostgreSQL में persist होते हैं।
 - Worker `robots.txt` का पालन करता है; redirects, custom ports, URL credentials और non-allowlisted domains अस्वीकार होते हैं।
 - HTML/PDF text extraction, content hash और सीमित link discovery उपलब्ध है।
-- Scanned/image-only PDFs के लिए OCR अभी उपलब्ध नहीं है।
+- Scanned/image-only PDFs के लिए Tesseract OCR (`eng+hin`) का bounded attempt उपलब्ध है: अधिकतम 20 पृष्ठ, प्रति पृष्ठ 15-second timeout। OCR engine अनुपलब्ध हो, PDF सीमा से बड़ा हो या extraction विफल हो तो दस्तावेज़ `needs_ocr` रहता है; उसे verified नहीं माना जाता।
 - Link discovery अभी सीमित और उसी approved host तक है; यह संपूर्ण web crawler या सभी भारतीय न्यायालयों/आयोगों के लिए पूर्ण adapters नहीं है।
 - हर नया दस्तावेज़ `review_required` में रहता है। Reviewer को मूल स्रोत, पूरा निर्णय, तारीख, cited paragraphs, subsequent/overruling history और लागू कानूनी स्थिति जाँचनी चाहिए।
 - Login walls, CAPTCHA, paywalls या technical access controls bypass नहीं किए जाते।
@@ -94,10 +94,10 @@ python -m app.worker --poll
 
 ## वर्तमान सीमाएँ — production readiness
 
-- Legal research search अभी exact phrase/substring आधारित है; semantic/vector retrieval नहीं।
+- Legal research search verified documents पर PostgreSQL ranked full-text search (`websearch_to_tsquery`/`ts_rank`) और substring fallback का उपयोग करती है; semantic/vector retrieval अभी नहीं है।
 - Applicant/PIO analysis अभी नियम-आधारित checklist है, AI judgment analysis या final legal opinion नहीं।
 - कोई in-house AI inference/training runtime अभी शामिल नहीं है।
-- OCR for scanned PDFs और व्यापक court/tribunal/commission adapters बाकी हैं।
+- OCR मौजूद है, लेकिन quality evaluation, OCR retry controls और व्यापक court/tribunal/commission-specific adapters अभी बाकी हैं।
 - Multi-user login, granular roles, subscription/payment और user management बाकी हैं।
 - Consent, PII redaction, immutable audit trail, backup/restore drills, monitoring/alerts और production security/load testing बाकी हैं।
 - Database में वास्तविक कानूनी सामग्री तभी उपलब्ध होगी जब approved sources crawl हों और reviewer documents verify करे। Empty corpus पर legal search परिणाम नहीं दे सकता।
