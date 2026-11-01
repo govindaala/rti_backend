@@ -61,6 +61,18 @@
         <article class="panel admin-card"><h2>OCR Pending</h2><p id="ocr-pending-total" class="metric-icon">—</p><p>OCR से text निकालना बाकी</p></article>
         <article class="panel admin-card"><h2>OCR Extracted</h2><p id="ocr-extracted-total" class="metric-icon">—</p><p>OCR text; human review फिर भी आवश्यक</p></article>
       </section>
+      <section class="panel" aria-labelledby="queue-health-title">
+        <div class="eyebrow">BACKGROUND WORKER</div>
+        <h2 id="queue-health-title">Queue और Worker की स्थिति</h2>
+        <p id="queue-health-status" class="notice" role="status">स्थिति जाँची जा रही है...</p>
+        <div class="admin-grid">
+          <article class="admin-card"><h3>Worker</h3><p id="worker-process-status" class="metric-icon">—</p><p id="worker-last-seen">Last heartbeat: —</p></article>
+          <article class="admin-card"><h3>Ready Queue</h3><p id="queue-ready-count" class="metric-icon">—</p><p id="queue-delayed-count">Delayed: —</p></article>
+          <article class="admin-card"><h3>Running Jobs</h3><p id="queue-running-count" class="metric-icon">—</p><p id="queue-stale-count">Stale jobs: —</p></article>
+          <article class="admin-card"><h3>Failed Jobs</h3><p id="queue-failed-count" class="metric-icon">—</p><p id="queue-oldest-age">Oldest ready: —</p></article>
+        </div>
+        <p id="queue-last-completed">Last completed job: —</p>
+      </section>
       <section class="panel">
         <h2>हाल की Crawl गतिविधि</h2>
         <div class="table-scroll"><table><thead><tr><th>स्थिति</th><th>URL</th><th>मिले लिंक</th><th>अपडेट</th></tr></thead><tbody id="recent-jobs"><tr><td colspan="4">लोड हो रहा है...</td></tr></tbody></table></div>
