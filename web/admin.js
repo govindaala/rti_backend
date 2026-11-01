@@ -13,6 +13,24 @@ const sourceStatus = document.getElementById("source-status");
 const submitButton = document.getElementById("submit-source");
 let csrfToken = "";
 let latestDocuments = [];
+let ocrPendingOffset = 0;
+const OCR_PENDING_PAGE_SIZE = 20;
+
+async function retryOcrDocument(item, button) {
+  if (!window.confirm("इस दस्तावेज़ को फिर से fetch करके OCR queue में डालें? यह दस्तावेज़ को verified नहीं करेगा।")) return;
+  button.disabled = true;
+  try {
+    const response = await api("/api/v1/admin/documents/" + encodeURIComponent(item.id) + "/retry-ocr", { method: "POST" });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || "HTTP " + response.status);
+    document.getElementById("ocr-pending-status").textContent =
+      result.queued ? "OCR retry queue में जोड़ा गया: " + result.job_id : "पहले से queue/running: " + result.job_id;
+    await loadDashboard();
+  } catch (error) {
+    document.getElementById("ocr-pending-status").textContent = "OCR retry नहीं हुआ: " + error.message;
+    button.disabled = false;
+  }
+}
 
 async function api(path, options = {}) {
   const headers = new Headers(options.headers || {});
@@ -100,6 +118,50 @@ function renderDocumentRows(rows) {
   }
 }
 
+function renderOcrPendingRows(rows, hasMore) {
+  const target = document.getElementById("ocr-pending-documents");
+  target.replaceChildren();
+  if (!rows.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 4;
+    cell.textContent = "अभी कोई OCR-pending दस्तावेज़ नहीं है।";
+    row.append(cell); target.append(row);
+  } else {
+    for (const item of rows) {
+      const row = document.createElement("tr");
+      addCell(row, item.title, item.url);
+      addCell(row, item.extraction_status);
+      addCell(row, item.updated_at);
+      const action = document.createElement("td");
+      const button = document.createElement("button");
+      button.type = "button"; button.className = "secondary"; button.textContent = "OCR दोबारा चलाएँ";
+      button.addEventListener("click", () => retryOcrDocument(item, button));
+      action.append(button); row.append(action); target.append(row);
+    }
+  }
+  document.getElementById("ocr-prev-page").disabled = ocrPendingOffset === 0;
+  document.getElementById("ocr-next-page").disabled = !hasMore;
+  document.getElementById("ocr-pending-status").textContent = rows.length
+    ? "दिखाए गए " + (ocrPendingOffset + 1) + "–" + (ocrPendingOffset + rows.length) +
+      " | आगे और: " + (hasMore ? "हाँ" : "नहीं")
+    : "OCR backlog खाली है।";
+}
+
+async function loadOcrPending() {
+  const status = document.getElementById("ocr-pending-status");
+  try {
+    const response = await api("/api/v1/admin/documents/ocr-pending?limit=" +
+      OCR_PENDING_PAGE_SIZE + "&offset=" + ocrPendingOffset);
+    if (response.status === 401) { showLogin(); return; }
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || "HTTP " + response.status);
+    renderOcrPendingRows(data.items || [], Boolean(data.has_more));
+  } catch (error) {
+    status.textContent = "OCR backlog नहीं खुला: " + error.message;
+  }
+}
+
 
 function formatAge(seconds) {
   if (seconds == null) return "—";
@@ -165,7 +227,7 @@ async function loadDashboard() {
       { key: "status" }, { key: "url", link: "url" }, { key: "discovered" }, { key: "updated_at" }
     ], "अभी कोई crawl job नहीं है।");
     renderDocumentRows(latestDocuments);
-    await loadQueueHealth();
+    await loadOcrPending();
     status.textContent = "Live database आँकड़े अपडेट हुए: " + new Date().toLocaleTimeString();
   } catch (error) { status.textContent = "Live dashboard उपलब्ध नहीं: " + error.message; }
   finally { refreshButton.disabled = false; }
@@ -226,6 +288,14 @@ document.getElementById("logout-button").addEventListener("click", async () => {
   try { await api("/api/v1/admin/auth/logout", { method: "POST" }); } finally { showLogin(); }
 });
 refreshButton.addEventListener("click", loadDashboard);
+document.getElementById("ocr-prev-page").addEventListener("click", async () => {
+  ocrPendingOffset = Math.max(0, ocrPendingOffset - OCR_PENDING_PAGE_SIZE);
+  await loadOcrPending();
+});
+document.getElementById("ocr-next-page").addEventListener("click", async () => {
+  ocrPendingOffset += OCR_PENDING_PAGE_SIZE;
+  await loadOcrPending();
+});
 checkSession();
 window.setInterval(() => { if (!adminContent.hidden) loadDashboard(); }, 15000);
 
