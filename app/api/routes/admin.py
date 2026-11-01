@@ -142,12 +142,13 @@ def dashboard_summary(request: Request) -> dict:
             ]
             cursor.execute(
                 """SELECT id::text, job_id::text, title, canonical_url, document_type,
-                          status, created_at
+                          status, created_at, ocr_required, extraction_status
                    FROM rti.legal_documents ORDER BY created_at DESC LIMIT 10"""
             )
             recent_documents = [
                 {"id": r[0], "job_id": r[1], "title": r[2], "url": r[3],
-                 "type": r[4], "status": r[5], "created_at": r[6].isoformat()}
+                 "type": r[4], "status": r[5], "created_at": r[6].isoformat(),
+                 "ocr_required": r[7], "extraction_status": r[8]}
                 for r in cursor.fetchall()
             ]
         return {"database": "connected", "sources": sources, "jobs": jobs,
