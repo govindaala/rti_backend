@@ -30,6 +30,7 @@ uvicorn app.main:app --reload
 - `GET /api/v1/admin/auth/me` — वर्तमान session और CSRF token.
 - `POST /api/v1/admin/auth/logout` — CSRF-protected logout.
 - `GET /api/v1/admin/dashboard` — authenticated live source/job/document metrics.
+- `GET /api/v1/admin/queue-health` — queue backlog, stale jobs और process-level worker heartbeat; worker-heartbeat migration लागू होना आवश्यक है.
 - `POST /api/v1/admin/sources` — authenticated और CSRF-protected source queue.
 - `POST /api/v1/admin/documents/{document_id}/verify` — reviewer confirmation और कारण सहित document verification.
 - `POST /api/v1/admin/documents/{document_id}/retry-ocr` — केवल `needs_ocr` documents को authenticated/CSRF-protected retry queue में डालें; verification नहीं करता.
