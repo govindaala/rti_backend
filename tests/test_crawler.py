@@ -73,7 +73,7 @@ def test_document_type_is_only_a_preliminary_metadata_label() -> None:
 
 
 def test_scanned_pdf_is_marked_for_ocr_instead_of_successful_extraction() -> None:
-    assert extraction_status_for_text("  \\n ", "application/pdf") == (True, "needs_ocr")
+    assert extraction_status_for_text("  \n ", "application/pdf") == (True, "needs_ocr")
 
 
 def test_text_pdf_does_not_require_ocr() -> None:
