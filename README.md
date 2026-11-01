@@ -30,6 +30,7 @@ uvicorn app.main:app --reload
 - `GET /api/v1/admin/auth/me` — वर्तमान session और CSRF token.
 - `POST /api/v1/admin/auth/logout` — CSRF-protected logout.
 - `GET /api/v1/admin/dashboard` — authenticated live source/job/document metrics.
+- `GET /api/v1/admin/queue-health` — queue backlog, stale jobs और process-level worker heartbeat; worker-heartbeat migration लागू होना आवश्यक है.
 - `POST /api/v1/admin/sources` — authenticated और CSRF-protected source queue.
 - `POST /api/v1/admin/documents/{document_id}/verify` — reviewer confirmation और कारण सहित document verification.
 - `GET /api/v1/admin/documents/ocr-pending?limit=20&offset=0` — authenticated, paginated OCR backlog.
@@ -91,7 +92,7 @@ python -m app.worker --once
 python -m app.worker --poll
 ```
 
-`python -m app.worker --check` database schema और OCR के लिए `eng`/`hin` Tesseract languages की readiness JSON में दिखाता है। Database/schema check fail होने पर exit code non-zero है; OCR unavailable होने पर warning देता है ताकि HTML/text PDF crawling फिर भी चल सके.
+`python -m app.worker --check` database schema (worker heartbeat table सहित) और OCR के लिए `eng`/`hin` Tesseract languages की readiness JSON में दिखाता है। Database/schema check fail होने पर exit code non-zero है; OCR unavailable होने पर warning देता है ताकि HTML/text PDF crawling फिर भी चल सके.
 
 `render.yaml` में अलग Render Background Worker परिभाषित है। यह Starter plan पर है और इसका recurring paid compute charge होगा। मौजूदा web service Free plan पर है; idle होने पर sleep करती है और 24×7 worker का विकल्प नहीं है।
 
