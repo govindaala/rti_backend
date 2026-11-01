@@ -101,6 +101,7 @@ async function loadDashboard() {
     document.getElementById("read-document-total").textContent = metrics.read_documents ?? "—";
     document.getElementById("decision-total").textContent = metrics.decision_documents ?? "—";
     document.getElementById("ocr-pending-total").textContent = metrics.ocr_pending_documents ?? "—";
+    document.getElementById("ocr-extracted-total").textContent = metrics.ocr_extracted_documents ?? "—";
     const bytes = Number(metrics.extracted_text_bytes || 0);
     document.getElementById("extracted-size").textContent = bytes >= 1073741824
       ? (bytes / 1073741824).toFixed(2) + " GB"
