@@ -476,6 +476,11 @@ def queue_health(request: Request) -> dict:
             "oldest_ready_age_seconds": None,
             "latest_job_heartbeat_at": None,
             "last_completed_at": None,
+            "worker_status": "unknown",
+            "online_workers": 0,
+            "stale_workers": 0,
+            "latest_worker_seen_at": None,
+            "worker_stale_after_seconds": 60,
             "stale_after_seconds": 600,
         }
     try:
@@ -501,19 +506,36 @@ def queue_health(request: Request) -> dict:
                        )
                      )))::bigint,
                      max(heartbeat_at) FILTER (WHERE status = 'running'),
-                     max(finished_at) FILTER (WHERE status = 'completed')
+                     max(finished_at) FILTER (WHERE status = 'completed'),
+                     (SELECT count(*) FROM rti.worker_heartbeats
+                      WHERE status = 'running'
+                        AND last_seen_at >= now() - interval '60 seconds'),
+                     (SELECT count(*) FROM rti.worker_heartbeats
+                      WHERE status = 'running'
+                        AND last_seen_at < now() - interval '60 seconds'),
+                     (SELECT max(last_seen_at) FROM rti.worker_heartbeats)
                    FROM rti.crawl_jobs"""
             )
             row = cursor.fetchone()
         if not row:
             raise RuntimeError("Queue health query returned no result")
-        queued_ready, queued_delayed, running, stale_running, failed, oldest_age, heartbeat, completed = row
+        (
+            queued_ready, queued_delayed, running, stale_running, failed, oldest_age,
+            heartbeat, completed, online_workers, stale_workers, worker_seen,
+        ) = row
         queued_ready = int(queued_ready or 0)
         queued_delayed = int(queued_delayed or 0)
         running = int(running or 0)
         stale_running = int(stale_running or 0)
         failed = int(failed or 0)
-        if stale_running or (queued_ready and oldest_age is not None and oldest_age >= 600):
+        online_workers = int(online_workers or 0)
+        stale_workers = int(stale_workers or 0)
+        worker_status = "online" if online_workers else ("stale" if stale_workers else "offline")
+        if (
+            stale_running
+            or (queued_ready and oldest_age is not None and oldest_age >= 600)
+            or (queued_ready and worker_status != "online")
+        ):
             health = "attention"
         elif queued_ready or running or queued_delayed:
             health = "busy"
@@ -530,8 +552,14 @@ def queue_health(request: Request) -> dict:
             "oldest_ready_age_seconds": int(oldest_age) if oldest_age is not None else None,
             "latest_job_heartbeat_at": heartbeat.isoformat() if heartbeat else None,
             "last_completed_at": completed.isoformat() if completed else None,
+            "worker_status": worker_status,
+            "online_workers": online_workers,
+            "stale_workers": stale_workers,
+            "latest_worker_seen_at": worker_seen.isoformat() if worker_seen else None,
+            "worker_stale_after_seconds": 60,
             "stale_after_seconds": 600,
         }
     except (psycopg.Error, RuntimeError):
         logger.exception("Queue health query failed")
         raise HTTPException(status_code=503, detail="Queue health is temporarily unavailable") from None
+
