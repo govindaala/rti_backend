@@ -242,6 +242,9 @@ def process_one() -> bool:
                     ocr_required=EXCLUDED.ocr_required,
                     status=CASE
                         WHEN EXCLUDED.ocr_required THEN 'needs_ocr'
+                        WHEN rti.legal_documents.status = 'needs_ocr'
+                             AND EXCLUDED.extraction_status IN ('extracted', 'extracted_ocr')
+                        THEN 'review_required'
                         WHEN rti.legal_documents.content_sha256
                              IS DISTINCT FROM EXCLUDED.content_sha256
                         THEN 'review_required'
@@ -321,7 +324,15 @@ def process_one() -> bool:
                 INSERT INTO rti.crawl_job_events(job_id,event_type,message)
                 VALUES(%s,'completed',%s)
                 """,
-                (job_id, f"Extracted document; queued {queued_links} allowlisted official legal, pagination and sitemap links; human review required"),
+                (
+                    job_id,
+                    (
+                        "Fetched document; OCR remains required; "
+                        if result["ocr_required"]
+                        else "Extracted document; "
+                    )
+                    + f"queued {queued_links} allowlisted official legal, pagination and sitemap links; human review required",
+                ),
             )
             cursor.execute(
                 """
