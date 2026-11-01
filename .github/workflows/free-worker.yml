@@ -1,0 +1,124 @@
+# Repository path: rti_backend/.github/workflows/free-worker.yml
+name: Free GitHub Actions Crawler Worker
+
+on:
+  schedule:
+    # Every 10 minutes; offset away from the top of the hour to reduce schedule delays.
+    - cron: "2,12,22,32,42,52 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rti-crawler-worker
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    name: Process a small batch of official-source jobs
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - name: Check whether the database secret is configured
+        id: secret
+        shell: bash
+        run: |
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Crawler worker not started"
+              echo "Add the repository Actions secret `DATABASE_URL` using the Supabase IPv4 Session Pooler connection string (port 5432), then rerun this workflow."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout repository
+        if: steps.secret.outputs.configured == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        if: steps.secret.outputs.configured == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Hindi and English OCR runtime
+        if: steps.secret.outputs.configured == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr tesseract-ocr-hin
+
+      - name: Install backend dependencies
+        if: steps.secret.outputs.configured == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .
+
+      - name: Validate database and process up to three queued documents
+        if: steps.secret.outputs.configured == 'true'
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import sys
+          from app.worker import (
+              preflight,
+              process_one,
+              record_worker_heartbeat,
+              recover_stale_jobs,
+          )
+
+          report = preflight()
+          print("Worker preflight:", json.dumps(report, ensure_ascii=False))
+          if not report.get("ok"):
+              sys.exit("Worker preflight failed; no crawl job was started.")
+
+          record_worker_heartbeat("running")
+          try:
+              recovered = recover_stale_jobs()
+              processed = 0
+              for _ in range(3):
+                  if not process_one():
+                      break
+                  processed += 1
+              print(
+                  json.dumps(
+                      {
+                          "recovered_stale_jobs": recovered,
+                          "processed_jobs": processed,
+                          "batch_limit": 3,
+                          "ocr_ready": report.get("ocr_ready", False),
+                          "warnings": report.get("warnings", []),
+                      },
+                      ensure_ascii=False,
+                  )
+              )
+              with open("worker-result.json", "w", encoding="utf-8") as result_file:
+                  json.dump(
+                      {
+                          "recovered_stale_jobs": recovered,
+                          "processed_jobs": processed,
+                          "batch_limit": 3,
+                          "ocr_ready": report.get("ocr_ready", False),
+                          "warnings": report.get("warnings", []),
+                      },
+                      result_file,
+                      ensure_ascii=False,
+                      indent=2,
+                  )
+          finally:
+              record_worker_heartbeat("stopped")
+
+      - name: Publish worker result
+        if: always() && steps.secret.outputs.configured == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: crawler-worker-result
+          path: worker-result.json
+          if-no-files-found: ignore
+          retention-days: 7
