@@ -419,3 +419,80 @@ def retry_ocr_document(
         raise
     except psycopg.Error as exc:
         raise HTTPException(status_code=503, detail="OCR retry queue service is unavailable") from exc
+
+
+@router.get("/admin/queue-health", summary="Background worker queue health")
+def queue_health(request: Request) -> dict:
+    """Queue backlog और stale running jobs दिखाएँ; process alive होने का झूठा दावा न करें."""
+    require_admin(request)
+    if not settings.database_url:
+        return {
+            "database": "not_configured",
+            "queue_health": "unknown",
+            "queued_ready": 0,
+            "queued_delayed": 0,
+            "running": 0,
+            "stale_running": 0,
+            "failed": 0,
+            "oldest_ready_age_seconds": None,
+            "latest_job_heartbeat_at": None,
+            "last_completed_at": None,
+            "stale_after_seconds": 600,
+        }
+    try:
+        with get_connection() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """SELECT
+                     count(*) FILTER (
+                       WHERE status = 'queued' AND available_at <= now()
+                     ),
+                     count(*) FILTER (
+                       WHERE status = 'queued' AND available_at > now()
+                     ),
+                     count(*) FILTER (WHERE status = 'running'),
+                     count(*) FILTER (
+                       WHERE status = 'running'
+                         AND COALESCE(heartbeat_at, started_at, updated_at)
+                             < now() - interval '10 minutes'
+                     ),
+                     count(*) FILTER (WHERE status = 'failed'),
+                     floor(extract(epoch FROM (
+                       now() - min(created_at) FILTER (
+                         WHERE status = 'queued' AND available_at <= now()
+                       )
+                     )))::bigint,
+                     max(heartbeat_at) FILTER (WHERE status = 'running'),
+                     max(finished_at) FILTER (WHERE status = 'completed')
+                   FROM rti.crawl_jobs"""
+            )
+            row = cursor.fetchone()
+        if not row:
+            raise RuntimeError("Queue health query returned no result")
+        queued_ready, queued_delayed, running, stale_running, failed, oldest_age, heartbeat, completed = row
+        queued_ready = int(queued_ready or 0)
+        queued_delayed = int(queued_delayed or 0)
+        running = int(running or 0)
+        stale_running = int(stale_running or 0)
+        failed = int(failed or 0)
+        if stale_running or (queued_ready and oldest_age is not None and oldest_age >= 600):
+            health = "attention"
+        elif queued_ready or running or queued_delayed:
+            health = "busy"
+        else:
+            health = "idle"
+        return {
+            "database": "connected",
+            "queue_health": health,
+            "queued_ready": queued_ready,
+            "queued_delayed": queued_delayed,
+            "running": running,
+            "stale_running": stale_running,
+            "failed": failed,
+            "oldest_ready_age_seconds": int(oldest_age) if oldest_age is not None else None,
+            "latest_job_heartbeat_at": heartbeat.isoformat() if heartbeat else None,
+            "last_completed_at": completed.isoformat() if completed else None,
+            "stale_after_seconds": 600,
+        }
+    except (psycopg.Error, RuntimeError):
+        logger.exception("Queue health query failed")
+        raise HTTPException(status_code=503, detail="Queue health is temporarily unavailable") from None
