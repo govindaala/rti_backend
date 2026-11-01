@@ -41,6 +41,10 @@ def record_worker_heartbeat(status: str = "running") -> None:
                VALUES (%s, %s, %s, %s, now(), now(),
                        CASE WHEN %s = 'stopped' THEN now() ELSE NULL END)
                ON CONFLICT (worker_id) DO UPDATE SET
+                   started_at = CASE
+                       WHEN rti.worker_heartbeats.status = 'stopped'
+                            AND EXCLUDED.status = 'running'
+                       THEN now() ELSE rti.worker_heartbeats.started_at END,
                    status = EXCLUDED.status,
                    last_seen_at = now(),
                    stopped_at = CASE WHEN EXCLUDED.status = 'stopped'
