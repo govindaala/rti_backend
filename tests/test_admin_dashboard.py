@@ -99,3 +99,68 @@ def test_document_verification_requires_authenticated_session(monkeypatch) -> No
         },
     )
     assert response.status_code == 401
+
+
+def test_admin_dashboard_exposes_live_ocr_backlog_metrics(monkeypatch) -> None:
+    configured = replace(
+        admin_routes.settings,
+        admin_id="root",
+        admin_pass="test-password",
+        admin_session_secret="x" * 48,
+        database_url="postgresql://test.invalid/db",
+    )
+    monkeypatch.setattr(admin_auth, "settings", configured)
+    monkeypatch.setattr(admin_routes, "settings", configured)
+
+    class FakeCursor:
+        def __init__(self) -> None:
+            self.fetchall_results = iter([
+                [("completed", 2)],
+                [("completed", 1)],
+                [("review_required", 3), ("needs_ocr", 1)],
+                [],
+                [],
+            ])
+            self.fetchone_results = iter([(2, 1, 123), (1, 1, 0)])
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, _query, _params=None) -> None:
+            return None
+
+        def fetchall(self):
+            return next(self.fetchall_results)
+
+        def fetchone(self):
+            return next(self.fetchone_results)
+
+    class FakeConnection:
+        def __init__(self) -> None:
+            self.fake_cursor = FakeCursor()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return self.fake_cursor
+
+    monkeypatch.setattr(admin_routes, "get_connection", lambda: FakeConnection())
+    client.cookies.clear()
+    login = client.post(
+        "/api/v1/admin/auth/login",
+        json={"admin_id": "root", "admin_pass": "test-password"},
+    )
+    assert login.status_code == 200
+    response = client.get("/api/v1/admin/dashboard")
+    assert response.status_code == 200
+    metrics = response.json()["metrics"]
+    assert metrics["ocr_pending_documents"] == 1
+    assert metrics["ocr_extracted_documents"] == 1
+    assert metrics["empty_text_documents"] == 0
