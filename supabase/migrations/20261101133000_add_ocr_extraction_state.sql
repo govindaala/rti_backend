@@ -15,7 +15,7 @@ ALTER TABLE rti.legal_documents
 
 ALTER TABLE rti.legal_documents
     ADD CONSTRAINT legal_documents_extraction_status_check
-    CHECK (extraction_status IN ('legacy_unknown', 'extracted', 'needs_ocr', 'empty_text'));
+    CHECK (extraction_status IN ('legacy_unknown', 'extracted', 'extracted_ocr', 'needs_ocr', 'empty_text'));
 
 CREATE INDEX IF NOT EXISTS idx_rti_legal_documents_needs_ocr
     ON rti.legal_documents (updated_at)
