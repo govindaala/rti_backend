@@ -9,6 +9,7 @@ import sys
 from threading import Event
 
 import httpx
+import psycopg
 
 from app.core.config import settings
 from app.core.database import get_connection
@@ -465,7 +466,7 @@ def preflight() -> dict:
                 report["errors"].append(
                     "Required rti tables or OCR extraction-state columns are missing"
                 )
-        except Exception as exc:
+        except (psycopg.Error, RuntimeError) as exc:
             LOGGER.exception("Worker preflight database check failed")
             report["errors"].append(f"Database preflight failed: {type(exc).__name__}")
 
@@ -476,7 +477,7 @@ def preflight() -> dict:
         missing = sorted({"eng", "hin"} - languages)
         report["missing_ocr_languages"] = missing
         report["ocr_ready"] = not missing
-    except Exception as exc:
+    except (ImportError, OSError, RuntimeError) as exc:
         LOGGER.warning("OCR runtime unavailable during preflight: %s", type(exc).__name__)
         report["missing_ocr_languages"] = ["eng", "hin"]
         report["warnings"].append(f"OCR runtime unavailable: {type(exc).__name__}")
