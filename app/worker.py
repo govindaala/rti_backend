@@ -305,6 +305,9 @@ def process_one(allowed_source_ids: list[str] | None = None) -> bool:
                     case_number=EXCLUDED.case_number,
                     read_at=now(),
                     analysis_status=EXCLUDED.analysis_status,
+                    learned_summary=CASE WHEN rti.legal_documents.content_sha256 IS DISTINCT FROM EXCLUDED.content_sha256 THEN NULL ELSE rti.legal_documents.learned_summary END,
+                    legal_issue=CASE WHEN rti.legal_documents.content_sha256 IS DISTINCT FROM EXCLUDED.content_sha256 THEN NULL ELSE rti.legal_documents.legal_issue END,
+                    holding=CASE WHEN rti.legal_documents.content_sha256 IS DISTINCT FROM EXCLUDED.content_sha256 THEN NULL ELSE rti.legal_documents.holding END,
                     updated_at=now()
                 """,
                 (
