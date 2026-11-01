@@ -227,6 +227,10 @@ def fetch_document(
         if pages > 500:
             raise ValueError("PDF exceeds the 500-page extraction limit")
         text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        # Scanned PDFs may contain page images but no selectable text. Never mark them as
+        # successfully extracted; downstream processing can route them to an OCR worker.
+        ocr_required = not bool(text.strip())
+        extraction_status = "needs_ocr" if ocr_required else "extracted"
         kind = "pdf"
         title = (reader.metadata.title if reader.metadata else None) or safe_url.rsplit("/", 1)[-1]
     else:
@@ -236,6 +240,8 @@ def fetch_document(
         text = extract_html_text(decoded)
         pages = None
         kind = "html"
+        ocr_required = False
+        extraction_status = "extracted" if text.strip() else "empty_text"
 
     return {
         "final_url": safe_url,
@@ -245,5 +251,7 @@ def fetch_document(
         "text": text[:2_000_000],
         "html": raw.decode("utf-8", errors="replace") if kind == "html" else None,
         "page_count": pages,
+        "ocr_required": ocr_required,
+        "extraction_status": extraction_status,
         "content_sha256": hashlib.sha256(raw).hexdigest(),
     }
