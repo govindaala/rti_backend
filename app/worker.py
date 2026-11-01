@@ -11,7 +11,7 @@ import httpx
 
 from app.core.config import settings
 from app.core.database import get_connection
-from app.services.crawler import classify_document_type, discover_legal_links, fetch_document
+from app.services.crawler import (classify_document_type, discover_legal_links, discover_sitemap_links, fetch_document)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 LOGGER = logging.getLogger("rti.worker")
@@ -202,11 +202,22 @@ def process_one() -> bool:
             timeout_seconds=settings.crawler_timeout_seconds,
             max_bytes=settings.crawler_max_bytes,
         )
-        child_links = (
-            discover_legal_links(result["html"], url, settings.crawler_links_per_page)
-            if result["document_type"] == "html" and result["html"]
-            else []
-        )
+        child_links = []
+        if result["document_type"] == "html" and result["html"]:
+            child_links.extend(
+                discover_legal_links(result["html"], result["final_url"], settings.crawler_links_per_page)
+            )
+            try:
+                child_links.extend(
+                    discover_sitemap_links(
+                        result["final_url"],
+                        timeout_seconds=settings.crawler_timeout_seconds,
+                        max_urls=settings.crawler_links_per_page * 4,
+                    )
+                )
+            except Exception:
+                LOGGER.exception("Sitemap discovery failed for source=%s", source_id)
+        child_links = list(dict.fromkeys(child_links))
         with get_connection() as connection, connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -298,7 +309,7 @@ def process_one() -> bool:
                 INSERT INTO rti.crawl_job_events(job_id,event_type,message)
                 VALUES(%s,'completed',%s)
                 """,
-                (job_id, f"Extracted document; queued {queued_links} same-host legal links; human review required"),
+                (job_id, f"Extracted document; queued {queued_links} allowlisted official legal, pagination and sitemap links; human review required"),
             )
             cursor.execute(
                 """
