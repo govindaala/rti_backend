@@ -2,6 +2,7 @@
 """लगातार चलने वाला, queue-backed सरकारी कानूनी दस्तावेज़ crawler worker."""
 
 import argparse
+import json
 import logging
 import signal
 import sys
@@ -428,6 +429,63 @@ def process_one() -> bool:
         return True
 
 
+
+def preflight() -> dict:
+    """Deployment से पहले database schema और optional OCR runtime की readiness जाँचें."""
+    report = {
+        "ok": False,
+        "database_configured": bool(settings.database_url),
+        "database_schema_ready": False,
+        "ocr_ready": False,
+        "missing_ocr_languages": ["eng", "hin"],
+        "warnings": [],
+        "errors": [],
+    }
+    if not settings.database_url:
+        report["errors"].append("DATABASE_URL is not configured")
+    else:
+        try:
+            with get_connection() as connection, connection.cursor() as cursor:
+                cursor.execute(
+                    """SELECT
+                           to_regclass('rti.research_sources') IS NOT NULL,
+                           to_regclass('rti.crawl_jobs') IS NOT NULL,
+                           to_regclass('rti.legal_documents') IS NOT NULL,
+                           to_regclass('rti.crawl_job_events') IS NOT NULL,
+                           EXISTS (SELECT 1 FROM information_schema.columns
+                                   WHERE table_schema='rti' AND table_name='legal_documents'
+                                     AND column_name='extraction_status'),
+                           EXISTS (SELECT 1 FROM information_schema.columns
+                                   WHERE table_schema='rti' AND table_name='legal_documents'
+                                     AND column_name='ocr_required')"""
+                )
+                schema_checks = cursor.fetchone()
+            report["database_schema_ready"] = bool(schema_checks and all(schema_checks))
+            if not report["database_schema_ready"]:
+                report["errors"].append(
+                    "Required rti tables or OCR extraction-state columns are missing"
+                )
+        except Exception as exc:
+            LOGGER.exception("Worker preflight database check failed")
+            report["errors"].append(f"Database preflight failed: {type(exc).__name__}")
+
+    try:
+        import pytesseract
+
+        languages = set(pytesseract.get_languages(config=""))
+        missing = sorted({"eng", "hin"} - languages)
+        report["missing_ocr_languages"] = missing
+        report["ocr_ready"] = not missing
+    except Exception as exc:
+        LOGGER.warning("OCR runtime unavailable during preflight: %s", type(exc).__name__)
+        report["missing_ocr_languages"] = ["eng", "hin"]
+        report["warnings"].append(f"OCR runtime unavailable: {type(exc).__name__}")
+
+    if not report["ocr_ready"] and not report["warnings"]:
+        report["warnings"].append("Tesseract must provide both eng and hin languages for OCR")
+    report["ok"] = report["database_schema_ready"]
+    return report
+
 def run_worker(poll_seconds: int, idle_seconds: int) -> None:
     """Queue खाली होने पर भी लगातार poll करें; graceful shutdown समर्थित."""
     LOGGER.info("Continuous crawler worker started")
@@ -448,14 +506,19 @@ def run_worker(poll_seconds: int, idle_seconds: int) -> None:
 
 
 def main() -> int:
-    """CLI में --once या --poll से worker चलाएँ."""
+    """CLI में --check, --once या --poll से worker चलाएँ."""
     parser = argparse.ArgumentParser()
+    parser.add_argument("--check", action="store_true", help="Database schema और OCR readiness जाँचें")
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--once", action="store_true", help="एक job process करें")
     group.add_argument("--poll", action="store_true", help="लगातार queue poll करें")
     parser.add_argument("--poll-seconds", type=int, default=settings.crawler_poll_seconds)
     parser.add_argument("--idle-seconds", type=int, default=settings.crawler_idle_seconds)
     args = parser.parse_args()
+    if args.check:
+        report = preflight()
+        print(json.dumps(report, ensure_ascii=False))
+        return 0 if report["ok"] else 1
     if args.poll:
         signal.signal(signal.SIGTERM, _stop_worker)
         signal.signal(signal.SIGINT, _stop_worker)
