@@ -629,12 +629,12 @@ def scheduled_official_discovery(authorization: str | None = Header(default=None
                        SELECT %s, 'queued', %s
                        WHERE NOT EXISTS (
                          SELECT 1 FROM rti.crawl_jobs
-                         WHERE source_id=%s
+                         WHERE source_id=%s AND current_url=%s
                            AND (status IN ('queued','running')
                                 OR (status='completed' AND created_at >= now() - interval '20 hours'))
                        )
                        RETURNING id""",
-                    (source_id, url, source_id),
+                    (source_id, url, source_id, url),
                 )
                 job = cursor.fetchone()
                 if job:

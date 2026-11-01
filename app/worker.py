@@ -204,7 +204,8 @@ def process_one(allowed_source_ids: list[str] | None = None) -> bool:
             JOIN rti.research_sources s ON s.id = j.source_id
             WHERE j.status = 'queued' AND j.available_at <= now()
               AND (%s::uuid[] IS NULL OR s.id = ANY(%s::uuid[]))
-            ORDER BY j.available_at, j.created_at
+            ORDER BY CASE WHEN j.current_url = s.submitted_url THEN 0 ELSE 1 END,
+                     j.available_at, j.created_at
             FOR UPDATE OF j SKIP LOCKED
             LIMIT 1
             """,
