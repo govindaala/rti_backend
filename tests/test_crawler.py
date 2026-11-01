@@ -7,6 +7,7 @@ from app.services.crawler import (
     _safe_url,
     classify_document_type,
     discover_legal_links,
+    extraction_status_for_text,
     extract_html_text,
 )
 
@@ -68,3 +69,19 @@ def test_document_type_is_only_a_preliminary_metadata_label() -> None:
     assert classify_document_type("https://x.gov.in/judgments/1.pdf", "Case") == "judgment"
     assert classify_document_type("https://x.gov.in/files/2.pdf", "Office Order") == "order"
     assert classify_document_type("https://x.gov.in/files/3.pdf", "New PDF") == "unknown"
+
+
+
+def test_scanned_pdf_is_marked_for_ocr_instead_of_successful_extraction() -> None:
+    assert extraction_status_for_text("  \n ", "application/pdf") == (True, "needs_ocr")
+
+
+def test_text_pdf_does_not_require_ocr() -> None:
+    assert extraction_status_for_text("Section 6 RTI Act", "application/pdf") == (
+        False,
+        "extracted",
+    )
+
+
+def test_empty_html_is_not_mislabelled_as_ocr_candidate() -> None:
+    assert extraction_status_for_text("", "text/html") == (False, "empty_text")
