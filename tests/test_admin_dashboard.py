@@ -2,7 +2,7 @@
 """Admin login/session, dashboard authorization, and privileged API security tests."""
 
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
@@ -316,7 +316,7 @@ def test_ocr_pending_list_uses_bounded_pagination(monkeypatch) -> None:
             assert params == (3, 10)
 
         def fetchall(self):
-            stamp = datetime(2026, 11, 1, tzinfo=timezone.utc)
+            stamp = datetime(2026, 11, 1, tzinfo=UTC)
             return [
                 ("doc-1", "Scanned order A", "https://cic.gov.in/a.pdf", "needs_ocr", stamp),
                 ("doc-2", "Scanned order B", "https://cic.gov.in/b.pdf", "needs_ocr", stamp),
