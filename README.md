@@ -91,7 +91,7 @@ python -m app.worker --once
 python -m app.worker --poll
 ```
 
-`python -m app.worker --check` database schema और OCR के लिए `eng`/`hin` Tesseract languages की readiness JSON में दिखाता है। Database/schema check fail होने पर exit code non-zero है; OCR unavailable होने पर warning देता है ताकि HTML/text PDF crawling फिर भी चल सके.
+`python -m app.worker --check` database schema (worker heartbeat table सहित) और OCR के लिए `eng`/`hin` Tesseract languages की readiness JSON में दिखाता है। Database/schema check fail होने पर exit code non-zero है; OCR unavailable होने पर warning देता है ताकि HTML/text PDF crawling फिर भी चल सके.
 
 `render.yaml` में अलग Render Background Worker परिभाषित है। यह Starter plan पर है और इसका recurring paid compute charge होगा। मौजूदा web service Free plan पर है; idle होने पर sleep करती है और 24×7 worker का विकल्प नहीं है।
 
