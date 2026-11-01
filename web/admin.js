@@ -77,7 +77,30 @@ function renderDocumentRows(rows) {
   }
   for (const item of rows) {
     const row = document.createElement("tr");
-    addCell(row, item.title, item.url); addCell(row, item.court_name); addCell(row, item.decision_date); addCell(row, item.read_at || item.created_at); addCell(row, item.extraction_status); addCell(row, item.analysis_status); addCell(row, item.case_number);
+    const titleCell = document.createElement("td");
+    const sourceLink = document.createElement("a");
+    sourceLink.href = item.url; sourceLink.target = "_blank"; sourceLink.rel = "noopener noreferrer";
+    sourceLink.textContent = item.title || item.url; titleCell.append(sourceLink);
+    const details = document.createElement("details");
+    const summary = document.createElement("summary"); summary.textContent = "प्रारंभिक विश्लेषण देखें"; details.append(summary);
+    const addDetail = (label, value) => {
+      if (!value || (Array.isArray(value) && value.length === 0)) return;
+      const paragraph = document.createElement("p");
+      paragraph.textContent = label + ": " + (Array.isArray(value) ? value.join(", ") : String(value));
+      details.append(paragraph);
+    };
+    addDetail("स्थिति/विधि", item.analysis_method || item.analysis_status);
+    addDetail("नियम-आधारित सार", item.learned_summary);
+    addDetail("संभावित मुद्दे का अंश", item.legal_issue);
+    addDetail("आदेश/निष्कर्ष का अंश", item.holding);
+    addDetail("पाठ में स्पष्ट RTI Act धाराएँ", item.cited_sections);
+    for (const paragraph of (item.key_paragraphs || [])) {
+      const block = document.createElement("blockquote");
+      block.textContent = (paragraph.label || "मूल अंश") + ": " + (paragraph.excerpt || "");
+      details.append(block);
+    }
+    titleCell.append(details); row.append(titleCell);
+    addCell(row, item.court_name); addCell(row, item.decision_date); addCell(row, item.read_at || item.created_at); addCell(row, item.extraction_status); addCell(row, item.analysis_status); addCell(row, item.case_number);
     const action = document.createElement("td");
     if (item.status === "review_required") {
       const button = document.createElement("button"); button.type = "button"; button.className = "secondary";
@@ -217,6 +240,10 @@ async function loadDashboard() {
     document.getElementById("decision-total").textContent = metrics.decision_documents ?? "—";
     document.getElementById("ocr-pending-total").textContent = metrics.ocr_pending_documents ?? "—";
     document.getElementById("ocr-extracted-total").textContent = metrics.ocr_extracted_documents ?? "—";
+    document.getElementById("daily-documents-found").textContent = metrics.daily_documents_found ?? "—";
+    document.getElementById("daily-documents-read").textContent = metrics.daily_documents_read ?? "—";
+    document.getElementById("daily-preliminary-analyses").textContent = metrics.daily_preliminary_analyses ?? "—";
+    document.getElementById("daily-failed-jobs").textContent = metrics.daily_failed_jobs ?? "—";
     const bytes = Number(metrics.extracted_text_bytes || 0);
     document.getElementById("extracted-size").textContent = bytes >= 1073741824
       ? (bytes / 1073741824).toFixed(2) + " GB"

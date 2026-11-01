@@ -132,6 +132,21 @@ def dashboard_summary(request: Request) -> dict:
             )
             ocr_pending, ocr_extracted, empty_text_documents = cursor.fetchone()
             cursor.execute(
+                """SELECT
+                    count(*) FILTER (WHERE created_at >= (date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata')),
+                    count(*) FILTER (WHERE read_at >= (date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata')),
+                    count(*) FILTER (WHERE analyzed_at >= (date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata')),
+                    count(*) FILTER (WHERE analysis_status = 'human_review_required')
+                   FROM rti.legal_documents"""
+            )
+            daily_documents_found, daily_documents_read, daily_preliminary_analyses, awaiting_human_review = cursor.fetchone()
+            cursor.execute(
+                """SELECT count(*) FROM rti.crawl_jobs
+                   WHERE status = 'failed'
+                     AND updated_at >= (date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata')"""
+            )
+            daily_failed_jobs = cursor.fetchone()[0]
+            cursor.execute(
                 """SELECT j.id::text, j.status, j.current_url, j.discovered_count,
                           j.processed_count, j.failed_count, j.updated_at
                    FROM rti.crawl_jobs j ORDER BY j.updated_at DESC LIMIT 10"""
@@ -144,7 +159,9 @@ def dashboard_summary(request: Request) -> dict:
             cursor.execute(
                 """SELECT id::text, job_id::text, title, canonical_url, document_type,
                           status, created_at, ocr_required, extraction_status,
-                          decision_date, court_name, case_number, read_at, analysis_status
+                          decision_date, court_name, case_number, read_at, analysis_status,
+                          learned_summary, legal_issue, holding, cited_sections,
+                          key_paragraphs, analysis_method, analyzed_at
                    FROM rti.legal_documents ORDER BY created_at DESC LIMIT 25"""
             )
             recent_documents = [
@@ -154,7 +171,10 @@ def dashboard_summary(request: Request) -> dict:
                  "decision_date": r[9].isoformat() if r[9] else None,
                  "court_name": r[10], "case_number": r[11],
                  "read_at": r[12].isoformat() if r[12] else None,
-                 "analysis_status": r[13]}
+                 "analysis_status": r[13], "learned_summary": r[14],
+                 "legal_issue": r[15], "holding": r[16], "cited_sections": r[17],
+                 "key_paragraphs": r[18], "analysis_method": r[19],
+                 "analyzed_at": r[20].isoformat() if r[20] else None}
                 for r in cursor.fetchall()
             ]
         return {"database": "connected", "sources": sources, "jobs": jobs,
@@ -166,6 +186,11 @@ def dashboard_summary(request: Request) -> dict:
                             "ocr_pending_documents": ocr_pending,
                             "ocr_extracted_documents": ocr_extracted,
                             "empty_text_documents": empty_text_documents,
+                            "daily_documents_found": daily_documents_found,
+                            "daily_documents_read": daily_documents_read,
+                            "daily_preliminary_analyses": daily_preliminary_analyses,
+                            "daily_failed_jobs": daily_failed_jobs,
+                            "awaiting_human_review": awaiting_human_review,
                             "default_catalog_entries": len(DEFAULT_SOURCE_CATALOG),
                             "related_law_entries": len(RELATED_LAW_DISCOVERY)}}
     except (psycopg.Error, RuntimeError):
@@ -604,11 +629,21 @@ def scheduled_official_discovery(authorization: str | None = Header(default=None
                        SELECT %s, 'queued', %s
                        WHERE NOT EXISTS (
                          SELECT 1 FROM rti.crawl_jobs
-                         WHERE source_id=%s AND status IN ('queued','running')
-                       )""",
+                         WHERE source_id=%s
+                           AND (status IN ('queued','running')
+                                OR (status='completed' AND created_at >= now() - interval '20 hours'))
+                       )
+                       RETURNING id""",
                     (source_id, url, source_id),
                 )
-                new_jobs += cursor.rowcount
+                job = cursor.fetchone()
+                if job:
+                    new_jobs += 1
+                    cursor.execute(
+                        """INSERT INTO rti.crawl_job_events(job_id,event_type,message)
+                           VALUES(%s,'scheduled','Daily official-source scan queued')""",
+                        (job[0],),
+                    )
         limit = max(1, min(settings.scheduler_max_jobs_per_run, 20))
         processed = 0
         for _ in range(limit):
@@ -617,7 +652,8 @@ def scheduled_official_discovery(authorization: str | None = Header(default=None
             processed += 1
         return {"ok": True, "official_sources": len(source_ids), "new_jobs": new_jobs,
                 "processed_jobs": processed, "job_limit": limit,
-                "ai_analysis": "pending; no AI provider configured"}
+                "preliminary_analysis": "local extractive; human review required",
+                "ai_analysis": "not configured; no external provider called"}
     except (psycopg.Error, RuntimeError) as exc:
         logger.exception("Scheduled official discovery failed")
         raise HTTPException(status_code=503, detail="Official discovery batch failed") from exc
