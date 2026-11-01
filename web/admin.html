@@ -60,6 +60,13 @@
         <article class="panel admin-card"><h2>Research Sources</h2><p class="metric-icon" id="source-count">—</p><div id="source-breakdown"></div></article>
         <article class="panel admin-card"><h2>Crawl Jobs</h2><p id="job-total" class="metric-icon">—</p><div id="job-breakdown"></div></article>
         <article class="panel admin-card"><h2>Legal Documents</h2><p id="document-total" class="metric-icon">—</p><div id="document-breakdown"></div></article>
+        <article class="panel admin-card"><h2>कुल पढ़े गए दस्तावेज़</h2><p id="read-document-total" class="metric-icon">—</p></article>
+        <article class="panel admin-card"><h2>कुल निर्णय दस्तावेज़</h2><p id="decision-total" class="metric-icon">—</p></article>
+        <article class="panel admin-card"><h2>निकाला गया पाठ</h2><p id="extracted-size" class="metric-icon">—</p></article>
+        <article class="panel admin-card"><h2>आज मिले दस्तावेज़</h2><p id="daily-documents-found" class="metric-icon">—</p><p>भारत समय के अनुसार</p></article>
+        <article class="panel admin-card"><h2>आज पढ़े गए</h2><p id="daily-documents-read" class="metric-icon">—</p><p>पढ़ने का समय आज</p></article>
+        <article class="panel admin-card"><h2>आज का प्रारंभिक विश्लेषण</h2><p id="daily-preliminary-analyses" class="metric-icon">—</p><p>नियम-आधारित; मानव समीक्षा बाकी</p></article>
+        <article class="panel admin-card"><h2>आज विफल jobs</h2><p id="daily-failed-jobs" class="metric-icon">—</p></article>
         <article class="panel admin-card"><h2>OCR Pending</h2><p id="ocr-pending-total" class="metric-icon">—</p><p>OCR से text निकालना बाकी</p></article>
         <article class="panel admin-card"><h2>OCR Extracted</h2><p id="ocr-extracted-total" class="metric-icon">—</p><p>OCR text; human review फिर भी आवश्यक</p></article>
       </section>
@@ -94,8 +101,8 @@
       </section>
       <section class="panel">
         <h2>हाल में सुरक्षित दस्तावेज़ / निर्णय</h2>
-        <p>निर्णय की तारीख और पढ़ने की तारीख अलग हैं। AI विश्लेषण उपलब्ध न होने पर pending_ai दिखेगा; इसे सीखा हुआ नहीं माना जाएगा।</p>
-        <div class="table-scroll"><table><thead><tr><th>शीर्षक / स्रोत</th><th>कोर्ट/आयोग</th><th>निर्णय तारीख</th><th>पढ़ा गया</th><th>पाठ स्थिति</th><th>AI विश्लेषण</th><th>केस नंबर</th><th>समीक्षा</th></tr></thead><tbody id="recent-documents"><tr><td colspan="5">लोड हो रहा है...</td></tr></tbody></table></div>
+        <p>निर्णय की तारीख और पढ़ने की तारीख अलग हैं। अभी यह स्थानीय नियम-आधारित प्रारंभिक विश्लेषण है, जनरेटिव AI नहीं; हर निष्कर्ष पर मानव कानूनी समीक्षा आवश्यक है।</p>
+        <div class="table-scroll"><table><thead><tr><th>शीर्षक / स्रोत</th><th>कोर्ट/आयोग</th><th>निर्णय तारीख</th><th>पढ़ा गया</th><th>पाठ स्थिति</th><th>AI विश्लेषण</th><th>केस नंबर</th><th>समीक्षा</th></tr></thead><tbody id="recent-documents"><tr><td colspan="8">लोड हो रहा है...</td></tr></tbody></table></div>
         <p class="security-warning"><strong>Legal verification:</strong> नए दस्तावेज़ पहले review_required में रहते हैं। कानूनी reviewer द्वारा मूल स्रोत, निर्णय, तारीख और बाद के/overruling निर्णय जाँचने के बाद ही verify करें।</p>
       </section>
     </div>
