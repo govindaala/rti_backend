@@ -9,7 +9,9 @@ services:
     region: singapore
     plan: starter
     buildCommand: apt-get update && apt-get install -y tesseract-ocr tesseract-ocr-hin && pip install .
-    startCommand: python -m app.worker --poll
+    # Fail deployment early if DATABASE_URL or required OCR-state schema is missing.
+    # OCR language/runtime problems remain warnings; text/HTML crawling can continue.
+    startCommand: python -m app.worker --check && python -m app.worker --poll
     autoDeployTrigger: checksPass
     maxShutdownDelaySeconds: 300
     envVars:
