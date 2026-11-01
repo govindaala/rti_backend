@@ -1,4 +1,3 @@
-# रिपॉजिटरी पथ: rti_backend/app/api/routes/admin.py
 """Session-authenticated live operations dashboard and privileged admin APIs."""
 
 import hmac
@@ -13,6 +12,7 @@ from app.core.admin_auth import COOKIE_NAME, SESSION_TTL_SECONDS, create_session
 from app.core.config import settings
 from app.core.database import get_connection
 from app.services.source_registry import is_official_source_url
+from app.services.default_catalog import DEFAULT_SOURCE_CATALOG, RELATED_LAW_DISCOVERY
 
 router = APIRouter(tags=["प्रशासन"])
 logger = logging.getLogger("rti.admin_auth")
@@ -116,6 +116,13 @@ def dashboard_summary(request: Request) -> dict:
             cursor.execute("SELECT status, count(*) FROM rti.legal_documents GROUP BY status")
             documents = {row[0]: row[1] for row in cursor.fetchall()}
             cursor.execute(
+                """SELECT count(*) FILTER (WHERE extracted_text IS NOT NULL AND length(trim(extracted_text)) > 0),
+                          count(*) FILTER (WHERE document_type IN ('judgment','order')),
+                          COALESCE(sum(octet_length(COALESCE(extracted_text, ''))), 0)
+                   FROM rti.legal_documents"""
+            )
+            read_documents, decision_documents, extracted_bytes = cursor.fetchone()
+            cursor.execute(
                 """SELECT j.id::text, j.status, j.current_url, j.discovered_count,
                           j.processed_count, j.failed_count, j.updated_at
                    FROM rti.crawl_jobs j ORDER BY j.updated_at DESC LIMIT 10"""
@@ -137,10 +144,72 @@ def dashboard_summary(request: Request) -> dict:
             ]
         return {"database": "connected", "sources": sources, "jobs": jobs,
                 "documents": documents, "recent_jobs": recent_jobs,
-                "recent_documents": recent_documents}
+                "recent_documents": recent_documents,
+                "metrics": {"read_documents": read_documents,
+                            "decision_documents": decision_documents,
+                            "extracted_text_bytes": extracted_bytes,
+                            "default_catalog_entries": len(DEFAULT_SOURCE_CATALOG),
+                            "related_law_entries": len(RELATED_LAW_DISCOVERY)}}
     except (psycopg.Error, RuntimeError):
         return {"database": "unavailable", "sources": {}, "jobs": {},
                 "documents": {}, "recent_jobs": [], "recent_documents": []}
+
+
+
+@router.post("/admin/sources/seed-defaults", summary="डिफॉल्ट आधिकारिक स्रोत queue में जोड़ें")
+def seed_default_sources(
+    request: Request,
+    x_csrf_token: str | None = Header(default=None),
+) -> dict:
+    """Authenticated admin action: idempotently enqueue official catalogue entry points."""
+    require_admin(request, x_csrf_token)
+    added = 0
+    already_present = 0
+    try:
+        with get_connection() as connection, connection.cursor() as cursor:
+            for item in DEFAULT_SOURCE_CATALOG:
+                url = item["url"]
+                if not is_official_source_url(url):
+                    continue
+                cursor.execute(
+                    """INSERT INTO rti.research_sources
+                           (submitted_url, normalized_url, source_label, status)
+                       VALUES (%s, %s, %s, 'queued')
+                       ON CONFLICT (normalized_url) DO NOTHING
+                       RETURNING id""",
+                    (url, url, item["name"]),
+                )
+                row = cursor.fetchone()
+                if not row:
+                    already_present += 1
+                    cursor.execute("SELECT id FROM rti.research_sources WHERE normalized_url=%s", (url,))
+                    row = cursor.fetchone()
+                    if not row:
+                        continue
+                source_id = row[0]
+                cursor.execute(
+                    """INSERT INTO rti.crawl_jobs (source_id, status, current_url)
+                       SELECT %s, 'queued', %s
+                       WHERE NOT EXISTS (
+                         SELECT 1 FROM rti.crawl_jobs
+                         WHERE source_id=%s AND current_url=%s AND status IN ('queued','running')
+                       ) RETURNING id""",
+                    (source_id, url, source_id, url),
+                )
+                job = cursor.fetchone()
+                if job:
+                    added += 1
+                    cursor.execute(
+                        """INSERT INTO rti.crawl_job_events(job_id,event_type,message)
+                           VALUES(%s,'queued','Default official catalogue source queued')""",
+                        (job[0],),
+                    )
+        return {"accepted": True, "queued_jobs_added": added,
+                "sources_already_present": already_present,
+                "catalogue_sources": len(DEFAULT_SOURCE_CATALOG),
+                "message": "Default catalogue queue operation completed"}
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail="Source queue is temporarily unavailable") from exc
 
 
 @router.post("/admin/sources", status_code=202, summary="कानूनी स्रोत जोड़ें और crawl queue करें")
