@@ -598,7 +598,7 @@ def scheduled_official_discovery(authorization: str | None = Header(default=None
                 if not row:
                     continue
                 source_id = row[0]
-                source_ids.append(str(source_id))
+                source_ids.append(source_id)
                 cursor.execute(
                     """INSERT INTO rti.crawl_jobs (source_id, status, current_url)
                        SELECT %s, 'queued', %s
