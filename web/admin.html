@@ -1,4 +1,3 @@
-<!-- रिपॉजिटरी पथ: rti_backend/web/admin.html -->
 <!doctype html>
 <html lang="hi">
 <head>
@@ -35,8 +34,10 @@
         <h1>कानूनी शोध नियंत्रण कक्ष</h1>
         <p>यह पैनल वास्तविक database queue, worker jobs और निकाले गए दस्तावेज़ दिखाता है। आँकड़े हर 15 सेकंड में अपडेट होते हैं।</p>
         <button class="secondary" id="refresh-dashboard" type="button">अभी रीफ्रेश करें</button>
+        <button class="secondary" id="seed-default-sources" type="button">डिफॉल्ट सरकारी स्रोत जोड़ें</button>
         <button class="secondary" id="logout-button" type="button">Logout</button>
         <p id="dashboard-status" class="notice" role="status">डेटा लोड हो रहा है...</p>
+        <p id="catalog-status" class="notice" role="status"></p>
       </section>
       <section class="panel" aria-labelledby="source-title">
         <div class="eyebrow">APPROVED OFFICIAL SOURCES</div>
