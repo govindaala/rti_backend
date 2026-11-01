@@ -270,7 +270,7 @@ def process_one(allowed_source_ids: list[str] | None = None) -> bool:
                      extraction_status, ocr_required, status, decision_date,
                      court_name, case_number, read_at, analysis_status, learned_summary,
                      legal_issue, holding, cited_sections, key_paragraphs, analysis_method, analyzed_at)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,now(),%s,%s,%s,%s,%s,%s,%s,%s,CASE WHEN %s THEN now() ELSE NULL END)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,now(),%s,%s,%s,%s,%s,%s,%s,CASE WHEN %s THEN now() ELSE NULL END)
                 ON CONFLICT (canonical_url) DO UPDATE SET
                     source_id=EXCLUDED.source_id,
                     job_id=EXCLUDED.job_id,
