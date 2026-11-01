@@ -284,3 +284,77 @@ def test_ocr_retry_rejects_documents_not_waiting_for_ocr(monkeypatch) -> None:
         headers={"X-CSRF-Token": login.json()["csrf_token"]},
     )
     assert response.status_code == 409
+
+
+def test_queue_health_requires_login() -> None:
+    client.cookies.clear()
+    response = client.get("/api/v1/admin/queue-health")
+    assert response.status_code == 401
+
+
+def test_queue_health_reports_stalled_jobs(monkeypatch) -> None:
+    configured = replace(
+        admin_routes.settings,
+        admin_id="root",
+        admin_pass="test-password",
+        admin_session_secret="x" * 48,
+        database_url="postgresql://test.invalid/db",
+    )
+    monkeypatch.setattr(admin_auth, "settings", configured)
+    monkeypatch.setattr(admin_routes, "settings", configured)
+
+    class FakeCursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, query, params=None):
+            assert "heartbeat_at" in query
+            assert "interval '10 minutes'" in query
+
+        def fetchone(self):
+            from datetime import UTC, datetime
+            return (3, 1, 2, 1, 4, 1800, datetime(2026, 11, 1, tzinfo=UTC), None)
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return FakeCursor()
+
+    monkeypatch.setattr(admin_routes, "get_connection", lambda: FakeConnection())
+    client.cookies.clear()
+    login = client.post(
+        "/api/v1/admin/auth/login",
+        json={"admin_id": "root", "admin_pass": "test-password"},
+    )
+    assert login.status_code == 200
+    response = client.get("/api/v1/admin/queue-health")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["queue_health"] == "attention"
+    assert payload["queued_ready"] == 3
+    assert payload["queued_delayed"] == 1
+    assert payload["running"] == 2
+    assert payload["stale_running"] == 1
+    assert payload["oldest_ready_age_seconds"] == 1800
+    assert payload["failed"] == 4
+
+
+def test_queue_health_marks_empty_queue_idle_without_database(monkeypatch) -> None:
+    configured_admin(monkeypatch)
+    login = client.post(
+        "/api/v1/admin/auth/login",
+        json={"admin_id": "root", "admin_pass": "test-password"},
+    )
+    assert login.status_code == 200
+    response = client.get("/api/v1/admin/queue-health")
+    assert response.status_code == 200
+    assert response.json()["database"] == "not_configured"
+    assert response.json()["queue_health"] == "unknown"
