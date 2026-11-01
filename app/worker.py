@@ -8,7 +8,7 @@ import os
 import signal
 import socket
 import sys
-from threading import Event
+from threading import Event, Thread
 
 import httpx
 import psycopg
@@ -20,6 +20,7 @@ from app.services.crawler import (classify_document_type, discover_legal_links, 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 LOGGER = logging.getLogger("rti.worker")
 STOP = Event()
+HEARTBEAT_INTERVAL_SECONDS = 30
 WORKER_ID = f"{socket.gethostname()}:{os.getpid()}"
 
 
@@ -511,15 +512,23 @@ def preflight() -> dict:
     report["ok"] = report["database_schema_ready"]
     return report
 
-def run_worker(poll_seconds: int, idle_seconds: int) -> None:
-    """Queue खाली होने पर भी लगातार poll करें; graceful shutdown समर्थित."""
-    LOGGER.info("Continuous crawler worker started")
+def _worker_heartbeat_loop() -> None:
+    """Keep process liveness fresh even while a long PDF/OCR job is executing."""
     while not STOP.is_set():
         try:
-            try:
-                record_worker_heartbeat("running")
-            except (psycopg.Error, RuntimeError):
-                LOGGER.exception("Could not persist worker heartbeat; continuing queue processing")
+            record_worker_heartbeat("running")
+        except (psycopg.Error, RuntimeError):
+            LOGGER.exception("Could not persist worker heartbeat; continuing queue processing")
+        STOP.wait(HEARTBEAT_INTERVAL_SECONDS)
+
+
+def run_worker(poll_seconds: int, idle_seconds: int) -> None:
+    """Queue खाली होने पर लगातार poll करें और long jobs के दौरान heartbeat बनाए रखें."""
+    LOGGER.info("Continuous crawler worker started")
+    heartbeat_thread = Thread(target=_worker_heartbeat_loop, name="worker-heartbeat", daemon=True)
+    heartbeat_thread.start()
+    while not STOP.is_set():
+        try:
             recover_stale_jobs()
             processed = process_one()
             if not processed and enqueue_due_source():
@@ -531,6 +540,7 @@ def run_worker(poll_seconds: int, idle_seconds: int) -> None:
         except Exception:
             LOGGER.exception("Worker loop failed; retrying after idle interval")
             STOP.wait(idle_seconds)
+    heartbeat_thread.join(timeout=HEARTBEAT_INTERVAL_SECONDS + 5)
     try:
         record_worker_heartbeat("stopped")
     except (psycopg.Error, RuntimeError):
