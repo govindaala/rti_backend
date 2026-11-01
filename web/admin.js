@@ -1,4 +1,3 @@
-// रिपॉजिटरी पथ: rti_backend/web/admin.js
 "use strict";
 
 const loginPanel = document.getElementById("login-panel");
@@ -6,6 +5,8 @@ const adminContent = document.getElementById("admin-content");
 const loginForm = document.getElementById("login-form");
 const loginStatus = document.getElementById("login-status");
 const refreshButton = document.getElementById("refresh-dashboard");
+const seedButton = document.getElementById("seed-default-sources");
+const catalogStatus = document.getElementById("catalog-status");
 const sourceForm = document.getElementById("source-form");
 const sourceStatus = document.getElementById("source-status");
 const submitButton = document.getElementById("submit-source");
@@ -96,6 +97,14 @@ async function loadDashboard() {
     document.getElementById("source-count").textContent = Object.values(sources).reduce((a, b) => a + b, 0);
     document.getElementById("job-total").textContent = Object.values(jobs).reduce((a, b) => a + b, 0);
     document.getElementById("document-total").textContent = Object.values(docs).reduce((a, b) => a + b, 0);
+    const metrics = data.metrics || {};
+    document.getElementById("read-document-total").textContent = metrics.read_documents ?? "—";
+    document.getElementById("decision-total").textContent = metrics.decision_documents ?? "—";
+    const bytes = Number(metrics.extracted_text_bytes || 0);
+    document.getElementById("extracted-size").textContent = bytes >= 1073741824
+      ? (bytes / 1073741824).toFixed(2) + " GB"
+      : bytes >= 1048576 ? (bytes / 1048576).toFixed(2) + " MB"
+      : bytes >= 1024 ? (bytes / 1024).toFixed(2) + " KB" : bytes + " bytes";
     renderBreakdown("source-breakdown", sources); renderBreakdown("job-breakdown", jobs); renderBreakdown("document-breakdown", docs);
     renderRows("recent-jobs", data.recent_jobs, [
       { key: "status" }, { key: "url", link: "url" }, { key: "discovered" }, { key: "updated_at" }
@@ -163,3 +172,21 @@ document.getElementById("logout-button").addEventListener("click", async () => {
 refreshButton.addEventListener("click", loadDashboard);
 checkSession();
 window.setInterval(() => { if (!adminContent.hidden) loadDashboard(); }, 15000);
+
+
+seedButton.addEventListener("click", async () => {
+  if (!window.confirm("डिफॉल्ट आधिकारिक कैटलॉग के स्रोत डेटाबेस queue में डालें? इससे सार्वजनिक सरकारी वेबसाइटों की crawling शुरू हो सकती है।")) return;
+  seedButton.disabled = true;
+  catalogStatus.textContent = "डिफॉल्ट स्रोत queue में जोड़े जा रहे हैं...";
+  try {
+    const response = await api("/api/v1/admin/sources/seed-defaults", { method: "POST" });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || "HTTP " + response.status);
+    catalogStatus.textContent = "कैटलॉग: " + result.catalogue_sources +
+      " | नई jobs: " + result.queued_jobs_added +
+      " | पहले से मौजूद sources: " + result.sources_already_present;
+    await loadDashboard();
+  } catch (error) {
+    catalogStatus.textContent = "डिफॉल्ट स्रोत queue नहीं हुए: " + error.message;
+  } finally { seedButton.disabled = false; }
+});
