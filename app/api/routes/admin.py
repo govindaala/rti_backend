@@ -14,6 +14,7 @@ from app.core.config import settings
 from app.core.database import get_connection
 from app.services.source_registry import is_official_source_url
 from app.services.default_catalog import DEFAULT_SOURCE_CATALOG, RELATED_LAW_DISCOVERY
+from app.worker import process_one
 
 router = APIRouter(tags=["प्रशासन"])
 logger = logging.getLogger("rti.admin_auth")
@@ -142,13 +143,18 @@ def dashboard_summary(request: Request) -> dict:
             ]
             cursor.execute(
                 """SELECT id::text, job_id::text, title, canonical_url, document_type,
-                          status, created_at, ocr_required, extraction_status
-                   FROM rti.legal_documents ORDER BY created_at DESC LIMIT 10"""
+                          status, created_at, ocr_required, extraction_status,
+                          decision_date, court_name, case_number, read_at, analysis_status
+                   FROM rti.legal_documents ORDER BY created_at DESC LIMIT 25"""
             )
             recent_documents = [
                 {"id": r[0], "job_id": r[1], "title": r[2], "url": r[3],
                  "type": r[4], "status": r[5], "created_at": r[6].isoformat(),
-                 "ocr_required": r[7], "extraction_status": r[8]}
+                 "ocr_required": r[7], "extraction_status": r[8],
+                 "decision_date": r[9].isoformat() if r[9] else None,
+                 "court_name": r[10], "case_number": r[11],
+                 "read_at": r[12].isoformat() if r[12] else None,
+                 "analysis_status": r[13]}
                 for r in cursor.fetchall()
             ]
         return {"database": "connected", "sources": sources, "jobs": jobs,
@@ -563,3 +569,55 @@ def queue_health(request: Request) -> dict:
         logger.exception("Queue health query failed")
         raise HTTPException(status_code=503, detail="Queue health is temporarily unavailable") from None
 
+
+
+@router.post("/scheduler/official-discovery", summary="Scheduled official-court decision discovery")
+def scheduled_official_discovery(authorization: str | None = Header(default=None)) -> dict:
+    """Run a bounded official-source batch; token must live in hosting secrets."""
+    expected = settings.scheduler_token or ""
+    supplied = authorization.removeprefix("Bearer ").strip() if authorization else ""
+    if not expected or not hmac.compare_digest(supplied.encode(), expected.encode()):
+        raise HTTPException(status_code=401, detail="Invalid scheduler credential")
+    source_ids: list[str] = []
+    new_jobs = 0
+    try:
+        with get_connection() as connection, connection.cursor() as cursor:
+            for item in DEFAULT_SOURCE_CATALOG:
+                url = item["url"]
+                if not is_official_source_url(url):
+                    continue
+                cursor.execute(
+                    """INSERT INTO rti.research_sources
+                           (submitted_url, normalized_url, source_label, status)
+                       VALUES (%s, %s, %s, 'queued')
+                       ON CONFLICT (normalized_url) DO NOTHING""",
+                    (url, url, item["name"]),
+                )
+                cursor.execute("SELECT id FROM rti.research_sources WHERE normalized_url=%s", (url,))
+                row = cursor.fetchone()
+                if not row:
+                    continue
+                source_id = row[0]
+                source_ids.append(source_id)
+                cursor.execute(
+                    """INSERT INTO rti.crawl_jobs (source_id, status, current_url)
+                       SELECT %s, 'queued', %s
+                       WHERE NOT EXISTS (
+                         SELECT 1 FROM rti.crawl_jobs
+                         WHERE source_id=%s AND status IN ('queued','running')
+                       )""",
+                    (source_id, url, source_id),
+                )
+                new_jobs += cursor.rowcount
+        limit = max(1, min(settings.scheduler_max_jobs_per_run, 20))
+        processed = 0
+        for _ in range(limit):
+            if not process_one(allowed_source_ids=source_ids):
+                break
+            processed += 1
+        return {"ok": True, "official_sources": len(source_ids), "new_jobs": new_jobs,
+                "processed_jobs": processed, "job_limit": limit,
+                "ai_analysis": "pending; no AI provider configured"}
+    except (psycopg.Error, RuntimeError) as exc:
+        logger.exception("Scheduled official discovery failed")
+        raise HTTPException(status_code=503, detail="Official discovery batch failed") from exc

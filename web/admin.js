@@ -73,11 +73,11 @@ function renderDocumentRows(rows) {
   const target = document.getElementById("recent-documents"); target.replaceChildren();
   if (!rows?.length) {
     const row = document.createElement("tr"); const cell = document.createElement("td");
-    cell.colSpan = 5; cell.textContent = "अभी कोई दस्तावेज़ सुरक्षित नहीं हुआ है।"; row.append(cell); target.append(row); return;
+    cell.colSpan = 8; cell.textContent = "अभी कोई दस्तावेज़ सुरक्षित नहीं हुआ है।"; row.append(cell); target.append(row); return;
   }
   for (const item of rows) {
     const row = document.createElement("tr");
-    addCell(row, item.title, item.url); addCell(row, item.type); addCell(row, item.status); addCell(row, item.created_at);
+    addCell(row, item.title, item.url); addCell(row, item.court_name); addCell(row, item.decision_date); addCell(row, item.read_at || item.created_at); addCell(row, item.extraction_status); addCell(row, item.analysis_status); addCell(row, item.case_number);
     const action = document.createElement("td");
     if (item.status === "review_required") {
       const button = document.createElement("button"); button.type = "button"; button.className = "secondary";

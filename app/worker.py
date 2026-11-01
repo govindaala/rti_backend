@@ -16,6 +16,7 @@ import psycopg
 from app.core.config import settings
 from app.core.database import get_connection
 from app.services.crawler import (classify_document_type, discover_legal_links, discover_sitemap_links, fetch_document)
+from app.services.decision_metadata import extract_decision_metadata
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 LOGGER = logging.getLogger("rti.worker")
@@ -191,8 +192,8 @@ def recover_stale_jobs(stale_after_seconds: int = 300) -> int:
     return recovered_count
 
 
-def process_one() -> bool:
-    """एक job atomically claim करके fetch, extract और child links queue करें."""
+def process_one(allowed_source_ids: list[str] | None = None) -> bool:
+    """Process one job, optionally restricted to the supplied official source IDs."""
     with get_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             """
@@ -200,10 +201,12 @@ def process_one() -> bool:
             FROM rti.crawl_jobs j
             JOIN rti.research_sources s ON s.id = j.source_id
             WHERE j.status = 'queued' AND j.available_at <= now()
+              AND (%s::uuid[] IS NULL OR s.id = ANY(%s::uuid[]))
             ORDER BY j.available_at, j.created_at
             FOR UPDATE OF j SKIP LOCKED
             LIMIT 1
-            """
+            """,
+            (allowed_source_ids, allowed_source_ids),
         )
         row = cursor.fetchone()
         if not row:
@@ -237,6 +240,7 @@ def process_one() -> bool:
             timeout_seconds=settings.crawler_timeout_seconds,
             max_bytes=settings.crawler_max_bytes,
         )
+        metadata = extract_decision_metadata(result["final_url"], result["title"], result["text"])
         child_links = []
         if result["document_type"] == "html" and result["html"]:
             child_links.extend(
@@ -259,8 +263,9 @@ def process_one() -> bool:
                 INSERT INTO rti.legal_documents
                     (source_id, job_id, canonical_url, title, document_type,
                      content_type, extracted_text, content_sha256, page_count,
-                     extraction_status, ocr_required, status)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                     extraction_status, ocr_required, status, decision_date,
+                     court_name, case_number, read_at, analysis_status)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,now(),%s)
                 ON CONFLICT (canonical_url) DO UPDATE SET
                     source_id=EXCLUDED.source_id,
                     job_id=EXCLUDED.job_id,
@@ -295,6 +300,14 @@ def process_one() -> bool:
                         ELSE rti.legal_documents.verified_at
                     END,
                     content_sha256=EXCLUDED.content_sha256,
+                    decision_date=EXCLUDED.decision_date,
+                    court_name=EXCLUDED.court_name,
+                    case_number=EXCLUDED.case_number,
+                    read_at=now(),
+                    analysis_status=EXCLUDED.analysis_status,
+                    learned_summary=CASE WHEN rti.legal_documents.content_sha256 IS DISTINCT FROM EXCLUDED.content_sha256 THEN NULL ELSE rti.legal_documents.learned_summary END,
+                    legal_issue=CASE WHEN rti.legal_documents.content_sha256 IS DISTINCT FROM EXCLUDED.content_sha256 THEN NULL ELSE rti.legal_documents.legal_issue END,
+                    holding=CASE WHEN rti.legal_documents.content_sha256 IS DISTINCT FROM EXCLUDED.content_sha256 THEN NULL ELSE rti.legal_documents.holding END,
                     updated_at=now()
                 """,
                 (
@@ -303,6 +316,8 @@ def process_one() -> bool:
                     result["content_type"], result["text"], result["content_sha256"],
                     result["page_count"], result["extraction_status"], result["ocr_required"],
                     document_status_for_extraction(result["ocr_required"]),
+                    metadata["decision_date"], metadata["court_name"], metadata["case_number"],
+                    "text_unavailable" if not result["text"].strip() else "pending_ai",
                 ),
             )
 
