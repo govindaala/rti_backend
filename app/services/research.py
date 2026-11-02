@@ -112,11 +112,43 @@ def apply_verified_legal_knowledge(
             "विवादित तथ्य और अनुपलब्ध साक्ष्य को स्पष्ट रूप से चिह्नित करें।",
         ],
     }
+    principle_records = search_verified_principles(retrieval_query, min(request.limit, 8))
+    traced_principles = []
+    for principle in principle_records:
+        searchable_principle = " ".join(
+            str(principle.get(key) or "")
+            for key in ("issue", "principle_text", "scope")
+        )
+        matched = sorted(query_terms & _terms(searchable_principle))
+        condition_terms = _terms(" ".join(principle.get("conditions") or []))
+        exception_terms = _terms(" ".join(principle.get("exceptions") or []))
+        trace = [
+            "सिद्धांत का प्रकार ratio_decidendi और स्थिति verified_current है; फिर भी वर्तमान कानून की अलग जाँच आवश्यक है।",
+            "मिले हुए प्रश्न-संबंधी शब्द: " + (", ".join(matched) if matched else "कोई स्पष्ट शब्द-समानता नहीं"),
+            "सभी शर्तों और अपवादों को मामले के तथ्यों से अलग-अलग मिलाना आवश्यक है।",
+        ]
+        if condition_terms & query_terms:
+            trace.append("प्रश्न और दर्ज शर्तों में कुछ शब्द समान हैं; यह शर्त पूरी होने का प्रमाण नहीं है।")
+        if exception_terms & query_terms:
+            trace.append("प्रश्न और दर्ज अपवादों में कुछ शब्द समान हैं; अपवाद लागू होने का निष्कर्ष नहीं है।")
+        if len(matched) >= 3:
+            signal = "potentially_relevant_review_facts"
+        elif matched:
+            signal = "limited_keyword_overlap"
+        else:
+            signal = "needs_fact_comparison"
+        traced_principles.append({
+            **principle,
+            "matched_terms": matched,
+            "application_signal": signal,
+            "application_trace": trace,
+        })
+
     return LegalApplicationResponse(
         question=request.question,
         role=request.role,
         evidence=evidence,
-        verified_principles=search_verified_principles(retrieval_query, min(request.limit, 8)),
+        verified_principles=traced_principles,
         result_count=len(evidence),
         common_legal_checks=common_checks,
         role_specific_checks=role_checks[request.role],
