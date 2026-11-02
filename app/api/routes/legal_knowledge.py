@@ -5,7 +5,6 @@ import psycopg
 from fastapi import APIRouter, Header, HTTPException, Query, Request
 from uuid import UUID
 
-from app.core.database import get_connection
 from app.core.admin_auth import require_admin
 from app.models.legal_principle import PrincipleCreate, PrincipleReview
 from app.repositories.legal_principles import (
