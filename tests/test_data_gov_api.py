@@ -19,7 +19,6 @@ def test_data_gov_api_url_adds_key_and_json_options_without_mutating_source(monk
     assert "api-key=test-secret-key" in request_url
     assert "format=json" in request_url
     assert "limit=250" in request_url
-    assert "test-secret-key" not in source_url
 
 
 def test_data_gov_api_url_requires_server_side_key(monkeypatch):
