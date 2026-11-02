@@ -110,6 +110,14 @@ python -m app.worker --poll
 
 **Worker अभी deploy नहीं किया गया है।** Queue में source डालना और उसका वास्तव में लगातार crawl होना अलग बातें हैं। 24×7 crawling के लिए Background Worker deploy, उसके साथ समान `DATABASE_URL` configure, और worker logs/queue processing verify करना जरूरी है। Paid worker provision करने से पहले billing/plan की user approval आवश्यक है।
 
+## संरचित RTI ज्ञान निष्कर्षण (RAG की आधार-परत)
+
+- Crawler के निकाले पाठ से नियम-आधारित प्रारंभिक रिकॉर्ड बनता है: RTI Act के स्पष्ट धारा-संदर्भ, मुद्दा-संकेत, आदेश-संकेत और स्रोत URL।
+- `learned_summary` में स्वतंत्र, संक्षिप्त metadata-सार रखा जाता है; यह मूल लेख/निर्णय की नकल या verified legal principle नहीं है। छोटे source excerpts अलग fields में केवल reviewer की जाँच के लिए रहते हैं।
+- `/api/v1/research/search` केवल `verified` दस्तावेज़ों को खोजता है और उत्तर में संक्षिप्त सार, मुद्दा/आदेश संकेत, धारा-संदर्भ, स्रोत URL तथा content hash देता है; यह पूरे extracted document को response में नहीं लौटाता।
+- यह अभी rule-based extraction + PostgreSQL full-text retrieval है, AI model training/fine-tuning नहीं। बाद में वास्तविक RAG/LLM जोड़ने से पहले source license, PII redaction, citation grounding, hallucination tests और human review की आवश्यकता होगी।
+- LiveLaw जैसे गैर-सरकारी प्रकाशक का उपयोग अधिकतम discovery/citation metadata के लिए अलग से किया जा सकता है; उसका पूरा लेख crawler में ingest नहीं किया जाता। निर्णय की पुष्टि प्राथमिक आधिकारिक न्यायालय/आयोग स्रोत से की जानी चाहिए।
+
 ## वर्तमान सीमाएँ — production readiness
 
 - Legal research search verified documents पर PostgreSQL ranked full-text search (`websearch_to_tsquery`/`ts_rank`) और substring fallback का उपयोग करती है; semantic/vector retrieval अभी नहीं है।
