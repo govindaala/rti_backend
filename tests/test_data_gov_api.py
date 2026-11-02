@@ -3,7 +3,6 @@
 
 import pytest
 
-from app import services
 from app.services import crawler
 
 
@@ -16,7 +15,7 @@ def test_data_gov_api_url_adds_key_and_json_options_without_mutating_source(monk
 
     request_url = crawler.build_data_gov_request_url(source_url)
 
-    assert source_url not in request_url or "test-secret-key" not in source_url
+    assert "test-secret-key" not in source_url
     assert "api-key=test-secret-key" in request_url
     assert "format=json" in request_url
     assert "limit=250" in request_url
