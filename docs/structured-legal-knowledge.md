@@ -20,6 +20,18 @@ LiveLaw जैसे गैर-सरकारी प्रकाशकों �
 - Applicant, PIO और neutral दृष्टिकोण के लिए अलग जाँच-सूचियाँ मिलती हैं, लेकिन सभी के लिए एक ही verified corpus उपयोग होता है।
 - निर्णय का operative order, pinpoint paragraphs, तथ्यात्मक अंतर, बाद के निर्णय, stay/appeal और वर्तमान कानून की जाँच के बिना कोई अंतिम कानूनी निष्कर्ष नहीं निकाला जाता।
 
+## सत्यापित Precedent Memory — अगला चरण
+अब प्रत्येक निर्णय से अलग-अलग कानूनी सिद्धांत रिकॉर्ड किए जा सकते हैं:
+- `ratio_decidendi`, `obiter_dicta`, और `procedural_direction` अलग प्रकार हैं।
+- मुद्दा, सिद्धांत, लागू क्षेत्र, शर्तें, अपवाद और Applicant/PIO के स्वीकार/अस्वीकार तर्क अलग fields में रहते हैं।
+- प्रत्येक सिद्धांत के साथ pinpoint paragraph reference और reviewer का छोटा supporting note आवश्यक है; निर्णय का लंबा पाठ कॉपी नहीं किया जाता।
+- `pending_review` सिद्धांत किसी user answer में नहीं दिखता।
+- केवल `verified_current` + `ratio_decidendi` + verified parent judgment उपयोगकर्ता के नए प्रश्न पर लागू किए जाते हैं।
+- बाद के निर्णय की स्थिति `needs_subsequent_review`, `distinguished`, `overruled`, या `superseded` दर्ज की जा सकती है। Overruled/superseded के लिए बाद का verified judgment reference आवश्यक है।
+- Admin API: `POST /api/v1/knowledge/principles`, `GET /api/v1/knowledge/principles/pending`, `POST /api/v1/knowledge/principles/{id}/review`।
+- User research API: `GET /api/v1/knowledge/principles/search?query=...`; `POST /api/v1/research/apply` में verified principles भी लौटते हैं।
+- DB migration: `supabase/migrations/20261102110000_add_verified_legal_principles.sql`; table private `rti` schema में है, RLS enabled है और anon/authenticated access revoked है।
+
 ## सुरक्षा नियम
 1. Crawler से आया रिकॉर्ड स्वतः verified नहीं होगा।
 2. मूल पाठ और metadata-सार अलग रखे जाएँ; API response में raw full text न लौटाएँ।
