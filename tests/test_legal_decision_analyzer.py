@@ -7,7 +7,7 @@ def test_only_explicitly_linked_rti_sections_are_extracted():
             "before the Commission. Accordingly, the appeal is dismissed.")
     result = analyze_decision_text(text, "https://cic.gov.in/orders/example")
     assert result["analysis_status"] == "human_review_required"
-    assert result["analysis_method"] == "rule_based_extractive_v1"
+    assert result["analysis_method"] == "rule_based_structured_v2"
     assert "धारा 8(1)(j)" in result["cited_sections"]
     assert result["legal_issue"]
     assert result["holding"]
