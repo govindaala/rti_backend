@@ -232,6 +232,20 @@ def _robots_allows(url: str, timeout_seconds: int) -> bool:
         return False
 
 
+def build_data_gov_request_url(url: str) -> str:
+    """Add API credentials at request time; never persist credentials in source URLs."""
+    parsed = urlsplit(url)
+    if parsed.hostname != "api.data.gov.in":
+        return url
+    if not settings.data_gov_api_key:
+        raise ValueError("DATA_GOV_API_KEY is required for data.gov.in API sources")
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    query.setdefault("format", "json")
+    query.setdefault("limit", str(max(1, min(settings.data_gov_api_page_limit, 1000))))
+    query["api-key"] = settings.data_gov_api_key
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), ""))
+
+
 def fetch_document(
     url: str,
     timeout_seconds: int = 20,
@@ -242,16 +256,7 @@ def fetch_document(
     if not _robots_allows(safe_url, timeout_seconds):
         raise PermissionError("Robots policy disallows crawling or could not be verified")
 
-    request_url = safe_url
-    parsed_request = urlsplit(safe_url)
-    if parsed_request.hostname == "api.data.gov.in":
-        if not settings.data_gov_api_key:
-            raise ValueError("DATA_GOV_API_KEY is required for data.gov.in API sources")
-        query = dict(parse_qsl(parsed_request.query, keep_blank_values=True))
-        query.setdefault("format", "json")
-        query.setdefault("limit", str(max(1, min(settings.data_gov_api_page_limit, 1000))))
-        query["api-key"] = settings.data_gov_api_key
-        request_url = urlunsplit((parsed_request.scheme, parsed_request.netloc, parsed_request.path, urlencode(query), ""))
+    request_url = build_data_gov_request_url(safe_url)
 
     with (
         httpx.Client(
