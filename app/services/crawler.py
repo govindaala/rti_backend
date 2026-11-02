@@ -312,7 +312,7 @@ def fetch_document(
         ocr_required, extraction_status = extraction_status_for_text(text, content_type)
     else:
         decoded = raw.decode("utf-8", errors="replace")
-        title_match = re.search(r"(?is)<title[^>]*>(.*?)</title\\s*>", decoded)
+        title_match = re.search(r"(?is)<title[^>]*>(.*?)</title\s*>", decoded)
         title = extract_html_text(title_match.group(1)) if title_match else safe_url
         text = extract_html_text(decoded)
         pages = None
