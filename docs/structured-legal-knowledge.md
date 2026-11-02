@@ -30,7 +30,7 @@ LiveLaw जैसे गैर-सरकारी प्रकाशकों �
 - बाद के निर्णय की स्थिति `needs_subsequent_review`, `distinguished`, `overruled`, या `superseded` दर्ज की जा सकती है। Overruled/superseded के लिए बाद का verified judgment reference आवश्यक है।
 - Admin API: `POST /api/v1/knowledge/principles`, `GET /api/v1/knowledge/principles/pending`, `POST /api/v1/knowledge/principles/{id}/review`।
 - User research API: `GET /api/v1/knowledge/principles/search?query=...`; `POST /api/v1/research/apply` में verified principles भी लौटते हैं।
-- DB migration: `supabase/migrations/20261102110000_add_verified_legal_principles.sql`; table private `rti` schema में है, RLS enabled है और anon/authenticated access revoked है।
+- DB migration: `supabase/migrations/20261102050302_add_verified_legal_principles.sql`; table private `rti` schema में है, RLS enabled है और anon/authenticated access revoked है।
 
 ## सुरक्षा नियम
 1. Crawler से आया रिकॉर्ड स्वतः verified नहीं होगा।
