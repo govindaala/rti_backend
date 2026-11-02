@@ -11,6 +11,7 @@ from app.models.research import (
     LegalResearchResponse,
 )
 from app.repositories.legal_knowledge import search_verified_documents
+from app.repositories.legal_principles import search_verified_principles
 
 RESEARCH_NOTE = (
     "परिणाम केवल मानव-सत्यापित corpus से हैं। उद्धृत निर्णय की वर्तमान वैधता, "
@@ -115,6 +116,7 @@ def apply_verified_legal_knowledge(
         question=request.question,
         role=request.role,
         evidence=evidence,
+        verified_principles=search_verified_principles(retrieval_query, min(request.limit, 8)),
         result_count=len(evidence),
         common_legal_checks=common_checks,
         role_specific_checks=role_checks[request.role],
