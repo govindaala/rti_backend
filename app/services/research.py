@@ -1,7 +1,15 @@
 # रिपॉजिटरी पथ: rti_backend/app/services/research.py
 """कानूनी शोध सेवा; unverified crawler output कभी evidence नहीं बनता."""
 
-from app.models.research import LegalResearchQuery, LegalResearchResponse
+import re
+
+from app.models.research import (
+    AppliedLegalEvidence,
+    LegalApplicationRequest,
+    LegalApplicationResponse,
+    LegalResearchQuery,
+    LegalResearchResponse,
+)
 from app.repositories.legal_knowledge import search_verified_documents
 
 RESEARCH_NOTE = (
@@ -21,15 +29,7 @@ def run_legal_research(query: LegalResearchQuery) -> LegalResearchResponse:
     )
 
 
-import re
-
-from app.models.research import (
-    AppliedLegalEvidence,
-    LegalApplicationRequest,
-    LegalApplicationResponse,
-)
-
-_TOKEN_PATTERN = re.compile(r"[\\w\\u0900-\\u097F]{2,}", re.UNICODE)
+_TOKEN_PATTERN = re.compile(r"[\w\u0900-\u097F]{2,}", re.UNICODE)
 _STOP_WORDS = {
     "और", "तथा", "क्या", "किस", "किसी", "कैसे", "कब", "है", "हैं", "था",
     "थी", "थे", "को", "की", "का", "के", "से", "पर", "में", "लिए", "द्वारा",
@@ -51,8 +51,14 @@ def apply_verified_legal_knowledge(
     request: LegalApplicationRequest,
 ) -> LegalApplicationResponse:
     """Verified decisions को नए प्रश्न से मिलाएँ; कोई unverified holding न गढ़ें."""
-    query_terms = _terms(request.question)
-    records = search_verified_documents(request.question, request.limit)
+    ordered_terms = [
+        token.lower() for token in _TOKEN_PATTERN.findall(request.question)
+        if token.lower() not in _STOP_WORDS
+    ]
+    query_terms = set(ordered_terms)
+    # OR broadens natural-language retrieval; evidence remains verified-only.
+    retrieval_query = " OR ".join(dict.fromkeys(ordered_terms[:8])) or request.question
+    records = search_verified_documents(retrieval_query, request.limit)
     evidence = []
     for record in records:
         searchable = " ".join(
