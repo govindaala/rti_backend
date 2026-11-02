@@ -75,6 +75,13 @@ def review_principle(
     reviewer: str, superseded_by_document_id: UUID | None,
 ) -> dict[str, Any] | None:
     with get_connection() as connection, connection.cursor() as cursor:
+        if superseded_by_document_id is not None:
+            cursor.execute(
+                "SELECT 1 FROM rti.legal_documents WHERE id = %s AND status = 'verified'",
+                (superseded_by_document_id,),
+            )
+            if not cursor.fetchone():
+                raise ValueError("बाद वाला निर्णय verified corpus में उपलब्ध नहीं है")
         cursor.execute(
             """UPDATE rti.legal_principles p
                SET legal_status = %s, reviewer_note = %s, reviewed_by = %s,
