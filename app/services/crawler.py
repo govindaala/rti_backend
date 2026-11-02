@@ -3,17 +3,19 @@
 
 import hashlib
 import io
+import json
 import logging
 import re
 import xml.etree.ElementTree as ET
 from html import unescape
 from html.parser import HTMLParser
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 from urllib.robotparser import RobotFileParser
 
 import httpx
 from pypdf import PdfReader
 
+from app.core.config import settings
 from app.services.source_registry import is_official_source_url
 
 LOGGER = logging.getLogger(__name__)
@@ -240,19 +242,30 @@ def fetch_document(
     if not _robots_allows(safe_url, timeout_seconds):
         raise PermissionError("Robots policy disallows crawling or could not be verified")
 
+    request_url = safe_url
+    parsed_request = urlsplit(safe_url)
+    if parsed_request.hostname == "api.data.gov.in":
+        if not settings.data_gov_api_key:
+            raise ValueError("DATA_GOV_API_KEY is required for data.gov.in API sources")
+        query = dict(parse_qsl(parsed_request.query, keep_blank_values=True))
+        query.setdefault("format", "json")
+        query.setdefault("limit", str(max(1, min(settings.data_gov_api_page_limit, 1000))))
+        query["api-key"] = settings.data_gov_api_key
+        request_url = urlunsplit((parsed_request.scheme, parsed_request.netloc, parsed_request.path, urlencode(query), ""))
+
     with (
         httpx.Client(
             timeout=timeout_seconds,
             follow_redirects=False,
-            headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/pdf"},
+            headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/pdf,application/json"},
         ) as client,
-        client.stream("GET", safe_url) as response,
+        client.stream("GET", request_url) as response,
     ):
         if response.status_code in (301, 302, 303, 307, 308):
             raise ValueError("Redirect requires manual source review")
         response.raise_for_status()
         content_type = response.headers.get("content-type", "").split(";")[0].lower()
-        if content_type not in ("application/pdf", "text/html", "application/xhtml+xml"):
+        if content_type not in ("application/pdf", "text/html", "application/xhtml+xml", "application/json"):
             raise ValueError("Unsupported content type")
         body = bytearray()
         for chunk in response.iter_bytes():
@@ -275,9 +288,21 @@ def fetch_document(
                 ocr_required, extraction_status = False, "extracted_ocr"
         kind = "pdf"
         title = (reader.metadata.title if reader.metadata else None) or safe_url.rsplit("/", 1)[-1]
+    elif content_type == "application/json":
+        try:
+            payload = json.loads(raw.decode("utf-8", errors="replace"))
+        except json.JSONDecodeError as exc:
+            raise ValueError("API returned invalid JSON") from exc
+        if isinstance(payload, dict) and payload.get("error"):
+            raise ValueError("data.gov.in API returned an error response")
+        title = (payload.get("title") if isinstance(payload, dict) else None) or safe_url
+        text = json.dumps(payload, ensure_ascii=False, indent=2)
+        pages = None
+        kind = "json"
+        ocr_required, extraction_status = extraction_status_for_text(text, content_type)
     else:
         decoded = raw.decode("utf-8", errors="replace")
-        title_match = re.search(r"(?is)<title[^>]*>(.*?)</title\s*>", decoded)
+        title_match = re.search(r"(?is)<title[^>]*>(.*?)</title\\s*>", decoded)
         title = extract_html_text(title_match.group(1)) if title_match else safe_url
         text = extract_html_text(decoded)
         pages = None
