@@ -14,7 +14,7 @@ def create_pending_principle(payload: dict[str, Any]) -> dict[str, Any]:
         cursor.execute(
             """SELECT status, canonical_url FROM rti.legal_documents
                WHERE id = %s FOR SHARE""",
-            (payload["document_id"],),
+            (UUID(payload["document_id"]),),
         )
         source = cursor.fetchone()
         if not source:
