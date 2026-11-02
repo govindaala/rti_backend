@@ -30,7 +30,7 @@ def create_pending_principle(payload: dict[str, Any]) -> dict[str, Any]:
                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                RETURNING id::text, legal_status""",
             (
-                payload["document_id"], payload["issue"], payload["principle_type"],
+                UUID(payload["document_id"]), payload["issue"], payload["principle_type"],
                 payload["principle_text"], payload.get("scope"),
                 Jsonb(payload.get("conditions", [])), Jsonb(payload.get("exceptions", [])),
                 Jsonb(payload.get("applicant_arguments_accepted", [])),
@@ -75,6 +75,14 @@ def review_principle(
     reviewer: str, superseded_by_document_id: UUID | None,
 ) -> dict[str, Any] | None:
     with get_connection() as connection, connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT legal_status FROM rti.legal_principles WHERE id = %s FOR UPDATE",
+            (principle_id,),
+        )
+        previous = cursor.fetchone()
+        if not previous:
+            return None
+        previous_status = previous[0]
         if superseded_by_document_id is not None:
             cursor.execute(
                 "SELECT 1 FROM rti.legal_documents WHERE id = %s AND status = 'verified'",
@@ -86,16 +94,25 @@ def review_principle(
             """UPDATE rti.legal_principles p
                SET legal_status = %s, reviewer_note = %s, reviewed_by = %s,
                    reviewed_at = now(), superseded_by_document_id = %s,
-                   updated_at = now()
+                   subsequent_treatment = %s, updated_at = now()
                WHERE p.id = %s AND p.legal_status IN ('pending_review','needs_subsequent_review','verified_current')
                  AND EXISTS (SELECT 1 FROM rti.legal_documents d
                              WHERE d.id = p.document_id AND d.status = 'verified')
                  AND (%s <> 'verified_current' OR jsonb_array_length(p.pinpoint_citations) > 0)
                RETURNING p.id::text, p.legal_status, p.reviewed_at""",
             (status, reviewer_note, reviewer, superseded_by_document_id,
-             principle_id, status),
+             Jsonb([]), principle_id, status),
         )
         row = cursor.fetchone()
+        if row:
+            cursor.execute(
+                """INSERT INTO rti.legal_principle_reviews
+                   (principle_id, previous_status, new_status, reviewer,
+                    reviewer_note, superseded_by_document_id)
+                   VALUES (%s,%s,%s,%s,%s,%s)""",
+                (principle_id, previous_status, status, reviewer,
+                 reviewer_note, superseded_by_document_id),
+            )
     if not row:
         return None
     return {"principle_id": row[0], "legal_status": row[1], "reviewed_at": row[2]}
