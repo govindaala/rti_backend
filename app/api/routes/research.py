@@ -4,7 +4,12 @@
 import psycopg
 from fastapi import APIRouter, HTTPException
 
-from app.models.research import (\n    LegalApplicationRequest, LegalApplicationResponse,\n    LegalResearchQuery, LegalResearchResponse,\n)
+from app.models.research import (
+    LegalApplicationRequest,
+    LegalApplicationResponse,
+    LegalResearchQuery,
+    LegalResearchResponse,
+)
 from app.services.research import apply_verified_legal_knowledge, run_legal_research
 
 router = APIRouter(prefix="/research", tags=["कानूनी शोध"])
