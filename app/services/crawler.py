@@ -243,7 +243,9 @@ def build_data_gov_request_url(url: str) -> str:
     query.setdefault("format", "json")
     query.setdefault("limit", str(max(1, min(settings.data_gov_api_page_limit, 1000))))
     query["api-key"] = settings.data_gov_api_key
-    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), ""))
+    return urlunsplit(
+        (parsed.scheme, parsed.netloc, parsed.path, urlencode(query), "")
+    )
 
 
 def fetch_document(
@@ -262,7 +264,10 @@ def fetch_document(
         httpx.Client(
             timeout=timeout_seconds,
             follow_redirects=False,
-            headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/pdf,application/json"},
+            headers={
+                "User-Agent": USER_AGENT,
+                "Accept": "text/html,application/pdf,application/json",
+            },
         ) as client,
         client.stream("GET", request_url) as response,
     ):
