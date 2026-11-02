@@ -17,6 +17,7 @@ LiveLaw जैसे गैर-सरकारी प्रकाशकों �
 - Hindi/English प्रश्नों से stop words हटाकर सीमित OR-term retrieval किया जाता है, ताकि लंबे प्राकृतिक भाषा प्रश्नों में एक-एक शब्द के आधार पर प्रासंगिक उम्मीदवार मिल सकें।
 - प्रत्येक उम्मीदवार के साथ मूल canonical URL, document ID, content hash, issue, holding, RTI sections और मिले हुए शब्द लौटते हैं।
 - `strong_keyword_overlap` / `partial_keyword_overlap` केवल lexical overlap labels हैं; ये AI confidence, कानूनी समानता या binding precedent का दावा नहीं हैं।
+- सत्यापित ratio के साथ `matched_terms`, `application_signal`, और `application_trace` लौटते हैं। ये बताते हैं कि कौन से शब्द मिले और कौन-सी शर्त/अपवाद जाँचना है; ये मामले के तथ्य पूरे होने या सिद्धांत लागू होने का स्वतः निर्णय नहीं देते।
 - Applicant, PIO और neutral दृष्टिकोण के लिए अलग जाँच-सूचियाँ मिलती हैं, लेकिन सभी के लिए एक ही verified corpus उपयोग होता है।
 - निर्णय का operative order, pinpoint paragraphs, तथ्यात्मक अंतर, बाद के निर्णय, stay/appeal और वर्तमान कानून की जाँच के बिना कोई अंतिम कानूनी निष्कर्ष नहीं निकाला जाता।
 
