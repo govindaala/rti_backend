@@ -59,11 +59,35 @@ class AppliedLegalEvidence(BaseModel):
     relevance_label: str
 
 
+class AppliedLegalPrinciple(BaseModel):
+    """वर्तमान verified ratio और उसके pinpoint citations."""
+    principle_id: str
+    document_id: str
+    source_title: str
+    source_url: str
+    authority: str | None = None
+    decision_date: date | None = None
+    issue: str
+    principle_text: str
+    scope: str | None = None
+    conditions: list[str] = Field(default_factory=list)
+    exceptions: list[str] = Field(default_factory=list)
+    applicant_arguments_accepted: list[str] = Field(default_factory=list)
+    applicant_arguments_rejected: list[str] = Field(default_factory=list)
+    pio_arguments_accepted: list[str] = Field(default_factory=list)
+    pio_arguments_rejected: list[str] = Field(default_factory=list)
+    outcome: str | None = None
+    pinpoint_citations: list[dict] = Field(default_factory=list)
+    legal_status: str
+    subsequent_treatment: list[str] = Field(default_factory=list)
+
+
 class LegalApplicationResponse(BaseModel):
     """नए प्रश्न के लिए स्रोत-आधारित तुलनात्मक विश्लेषण."""
     question: str
     role: str
     evidence: list[AppliedLegalEvidence]
+    verified_principles: list[AppliedLegalPrinciple] = Field(default_factory=list)
     common_legal_checks: list[str]
     role_specific_checks: list[str]
     limitations: list[str]

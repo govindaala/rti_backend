@@ -15,6 +15,7 @@ from app.api.routes.research import router as research_router
 from app.api.routes.database import router as database_router
 from app.api.routes.health import router as health_router
 from app.api.routes.legal_cases import router as legal_cases_router
+from app.api.routes.legal_knowledge import router as legal_knowledge_router
 from app.core.config import settings
 
 logger = logging.getLogger("rti.admin_config")
@@ -42,6 +43,7 @@ app = FastAPI(
 app.include_router(health_router, prefix=settings.api_v1_prefix)
 app.include_router(database_router, prefix=settings.api_v1_prefix)
 app.include_router(legal_cases_router, prefix=settings.api_v1_prefix)
+app.include_router(legal_knowledge_router, prefix=settings.api_v1_prefix)
 app.include_router(admin_router, prefix=settings.api_v1_prefix)
 app.include_router(research_router, prefix=settings.api_v1_prefix)
 app.include_router(drafts_router, prefix=settings.api_v1_prefix)

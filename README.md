@@ -37,6 +37,11 @@ uvicorn app.main:app --reload
 - `GET /api/v1/admin/documents/ocr-pending?limit=20&offset=0` — authenticated, paginated OCR backlog.
 - `POST /api/v1/admin/documents/{document_id}/retry-ocr` — केवल `needs_ocr` documents को authenticated/CSRF-protected retry queue में डालें; verification नहीं करता.
 - `POST /api/v1/research/search` — केवल `verified` legal documents में खोज.
+- `POST /api/v1/research/apply` — नए प्रश्न पर verified judgments और मानव-सत्यापित वर्तमान ratio लागू करें.
+- `POST /api/v1/knowledge/principles` — Admin द्वारा ratio/obiter/प्रक्रियात्मक सिद्धांत pending review में दर्ज करें.
+- `GET /api/v1/knowledge/principles/pending` — Admin review queue.
+- `POST /api/v1/knowledge/principles/{id}/review` — सिद्धांत की वर्तमान/बदली/overruled स्थिति की समीक्षा.
+- `GET /api/v1/knowledge/principles/search?query=...` — केवल verified current ratio खोजें.
 - `POST /api/v1/analysis/checklist` — Applicant/PIO के लिए नियम-आधारित प्रारंभिक checklist.
 - `POST /api/v1/drafts/rti` — हिन्दी/English RTI आवेदन मसौदा; कोई auto-submit नहीं.
 - `POST /api/v1/drafts/first-appeal` — प्रथम अपील मसौदा; कोई auto-submit नहीं.
