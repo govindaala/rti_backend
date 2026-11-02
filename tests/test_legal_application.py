@@ -26,7 +26,6 @@ def test_application_uses_only_verified_search_and_returns_traceable_evidence(mo
 
     monkeypatch.setattr(research, "search_verified_documents", fake_search)
     monkeypatch.setattr(research, "search_verified_principles", lambda *_args: [])
-    monkeypatch.setattr(research, "search_verified_principles", lambda *_args: [])
     result = research.apply_verified_legal_knowledge(LegalApplicationRequest(
         question="क्या धारा 8(1)(j) व्यक्तिगत सूचना देने से रोकती है?",
         role="applicant",
@@ -52,6 +51,7 @@ def test_application_neutral_role_does_not_return_unverified_material(monkeypatc
         return []
 
     monkeypatch.setattr(research, "search_verified_documents", fake_search)
+    monkeypatch.setattr(research, "search_verified_principles", lambda *_args: [])
     result = research.apply_verified_legal_knowledge(LegalApplicationRequest(
         question="सूचना की प्रमाणित प्रति देने का नियम क्या है?",
         role="neutral",
