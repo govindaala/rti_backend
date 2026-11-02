@@ -3,6 +3,7 @@
 
 import psycopg
 from fastapi import APIRouter, Header, HTTPException, Query, Request
+from uuid import UUID
 
 from app.core.database import get_connection
 from app.core.admin_auth import require_admin
@@ -42,7 +43,7 @@ def pending_principles(request: Request, limit: int = Query(default=50, ge=1, le
 
 
 @router.post("/{principle_id}/review", summary="सिद्धांत की कानूनी स्थिति की मानव समीक्षा")
-def review_one(principle_id: str, payload: PrincipleReview, request: Request,
+def review_one(principle_id: UUID, payload: PrincipleReview, request: Request,
                x_csrf_token: str | None = Header(default=None)) -> dict:
     session = require_admin(request, x_csrf_token)
     try:
