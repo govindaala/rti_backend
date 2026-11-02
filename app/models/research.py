@@ -79,6 +79,7 @@ class AppliedLegalPrinciple(BaseModel):
     outcome: str | None = None
     pinpoint_citations: list[dict] = Field(default_factory=list)
     legal_status: str
+    subsequent_treatment: list[str] = Field(default_factory=list)
 
 
 class LegalApplicationResponse(BaseModel):
