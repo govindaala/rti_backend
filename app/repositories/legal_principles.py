@@ -119,6 +119,32 @@ def review_principle(
     return {"principle_id": row[0], "legal_status": row[1], "reviewed_at": row[2]}
 
 
+def list_principles_needing_subsequent_review(limit: int = 50) -> list[dict[str, Any]]:
+    """List verified-source principles explicitly marked for later-case review."""
+    with get_connection() as connection, connection.cursor() as cursor:
+        cursor.execute(
+            """SELECT p.id::text, p.document_id::text, d.title, d.canonical_url,
+                      d.court_or_authority, d.decision_date, p.issue,
+                      p.principle_type, p.principle_text, p.legal_status,
+                      p.reviewer_note, p.subsequent_treatment,
+                      p.superseded_by_document_id::text, p.updated_at
+               FROM rti.legal_principles p
+               JOIN rti.legal_documents d ON d.id = p.document_id
+               WHERE p.legal_status = 'needs_subsequent_review'
+                 AND d.status = 'verified'
+               ORDER BY p.updated_at ASC, d.decision_date DESC NULLS LAST
+               LIMIT %s""",
+            (limit,),
+        )
+        rows = cursor.fetchall()
+    keys = (
+        "principle_id", "document_id", "source_title", "source_url", "authority",
+        "decision_date", "issue", "principle_type", "principle_text", "legal_status",
+        "reviewer_note", "subsequent_treatment", "superseded_by_document_id", "updated_at",
+    )
+    return [dict(zip(keys, row, strict=True)) for row in rows]
+
+
 def search_verified_principles(query: str, limit: int = 8) -> list[dict[str, Any]]:
     cleaned = " ".join(query.split())
     if not cleaned:

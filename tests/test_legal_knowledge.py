@@ -88,3 +88,18 @@ def test_verified_principles_are_added_to_application_response(monkeypatch):
     assert response.verified_principles[0].application_signal == "potentially_relevant_review_facts"
     assert "व्यक्तिगत" in response.verified_principles[0].matched_terms
     assert any("शर्तों और अपवादों" in item for item in response.verified_principles[0].application_trace)
+
+
+
+def test_needs_subsequent_review_queue_is_admin_only_and_labeled(monkeypatch):
+    monkeypatch.setattr(legal_knowledge, "require_admin", lambda *_args, **_kwargs: {"sub": "admin"})
+    monkeypatch.setattr(
+        legal_knowledge,
+        "list_principles_needing_subsequent_review",
+        lambda limit: [{"principle_id": "p-review", "legal_status": "needs_subsequent_review"}],
+    )
+    response = client.get("/api/v1/knowledge/principles/needs-subsequent-review")
+    assert response.status_code == 200
+    assert response.json()["count"] == 1
+    assert response.json()["items"][0]["legal_status"] == "needs_subsequent_review"
+    assert "अपने-आप" in response.json()["note"]

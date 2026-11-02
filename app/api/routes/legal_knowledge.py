@@ -8,7 +8,10 @@ from uuid import UUID
 from app.core.admin_auth import require_admin
 from app.models.legal_principle import PrincipleCreate, PrincipleReview
 from app.repositories.legal_principles import (
-    create_pending_principle, list_pending_principles, review_principle,
+    create_pending_principle,
+    list_pending_principles,
+    list_principles_needing_subsequent_review,
+    review_principle,
     search_verified_principles,
 )
 
@@ -37,6 +40,22 @@ def pending_principles(request: Request, limit: int = Query(default=50, ge=1, le
     try:
         items = list_pending_principles(limit)
         return {"items": items, "count": len(items)}
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail="Legal knowledge store unavailable") from exc
+
+
+@router.get("/needs-subsequent-review", summary="बाद के निर्णयों की जाँच के लिए चिह्नित सिद्धांत")
+def principles_needing_subsequent_review(
+    request: Request, limit: int = Query(default=50, ge=1, le=100)
+) -> dict:
+    require_admin(request)
+    try:
+        items = list_principles_needing_subsequent_review(limit)
+        return {
+            "items": items,
+            "count": len(items),
+            "note": "यह समीक्षा कतार है; सूची में होना अपने-आप सिद्धांत के पलटने या अमान्य होने का प्रमाण नहीं है।",
+        }
     except psycopg.Error as exc:
         raise HTTPException(status_code=503, detail="Legal knowledge store unavailable") from exc
 
