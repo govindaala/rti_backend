@@ -51,6 +51,7 @@ def review_one(principle_id: UUID, payload: PrincipleReview, request: Request,
             principle_id=principle_id, status=payload.legal_status.value,
             reviewer_note=payload.reviewer_note, reviewer=session["sub"],
             superseded_by_document_id=payload.superseded_by_document_id,
+            subsequent_treatment=payload.subsequent_treatment,
         )
         if not result:
             raise HTTPException(status_code=404, detail="सिद्धांत नहीं मिला या स्रोत verified नहीं है")
