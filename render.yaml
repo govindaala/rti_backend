@@ -24,10 +24,16 @@ services:
       - key: CRAWLER_POLL_SECONDS
         value: "2"
       - key: CRAWLER_IDLE_SECONDS
-        value: "10"
+        value: "2"
       - key: CRAWLER_LINKS_PER_PAGE
         value: "25"
       - key: CRAWLER_MAX_PAGES_PER_SOURCE
         value: "250"
       - key: CRAWLER_RECRAWL_HOURS
         value: "24"
+      - key: DATA_GOV_API_KEY
+        sync: false
+      - key: DATA_GOV_RESOURCE_IDS
+        sync: false
+      - key: DATA_GOV_API_PAGE_LIMIT
+        value: "100"

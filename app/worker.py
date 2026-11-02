@@ -5,6 +5,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import signal
 import socket
 import sys
@@ -126,6 +127,73 @@ def enqueue_due_source() -> bool:
         )
     LOGGER.info("Scheduled periodic re-crawl source=%s job=%s", source_id, job_id)
     return True
+
+
+def enqueue_configured_data_gov_sources() -> int:
+    """Configured data.gov.in resource IDs को secret-free URL के साथ durable queue में डालें."""
+    if not settings.data_gov_api_key:
+        LOGGER.info("data.gov.in API ingestion is not configured; DATA_GOV_API_KEY is absent")
+        return 0
+    resource_ids = list(dict.fromkeys(
+        item.strip() for item in settings.data_gov_resource_ids.split(",") if item.strip()
+    ))
+    queued = 0
+    for resource_id in resource_ids:
+        if not re.fullmatch(r"[A-Za-z0-9_-]{8,100}", resource_id):
+            LOGGER.warning("Ignoring malformed data.gov.in resource identifier")
+            continue
+        source_url = f"https://api.data.gov.in/resource/{resource_id}"
+        label = f"data.gov.in API resource {resource_id}"
+        with get_connection() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """INSERT INTO rti.research_sources
+                       (submitted_url, normalized_url, source_label, status)
+                   VALUES (%s, %s, %s, 'queued')
+                   ON CONFLICT (normalized_url) DO NOTHING
+                   RETURNING id""",
+                (source_url, source_url, label),
+            )
+            row = cursor.fetchone()
+            if row:
+                source_id = row[0]
+            else:
+                cursor.execute(
+                    "SELECT id FROM rti.research_sources WHERE normalized_url=%s",
+                    (source_url,),
+                )
+                existing = cursor.fetchone()
+                if not existing:
+                    continue
+                source_id = existing[0]
+            cursor.execute(
+                """INSERT INTO rti.crawl_jobs (source_id, status, current_url)
+                   SELECT %s, 'queued', %s
+                   WHERE NOT EXISTS (
+                     SELECT 1 FROM rti.crawl_jobs
+                     WHERE source_id=%s AND current_url=%s
+                       AND (status IN ('queued','running')
+                            OR (status='completed'
+                                AND created_at >= now() - make_interval(hours => %s)))
+                   )
+                   RETURNING id""",
+                (source_id, source_url, source_id, source_url, settings.crawler_recrawl_hours),
+            )
+            job = cursor.fetchone()
+            if job:
+                queued += 1
+                cursor.execute(
+                    """UPDATE rti.research_sources
+                       SET status='queued', last_error_code=NULL, updated_at=now()
+                       WHERE id=%s""",
+                    (source_id,),
+                )
+                cursor.execute(
+                    """INSERT INTO rti.crawl_job_events(job_id,event_type,message)
+                       VALUES(%s,'queued','Configured data.gov.in API resource queued')""",
+                    (job[0],),
+                )
+    LOGGER.info("Configured data.gov.in resources queued: %s", queued)
+    return queued
 
 
 def recover_stale_jobs(stale_after_seconds: int = 300) -> int:
@@ -555,6 +623,10 @@ def _worker_heartbeat_loop() -> None:
 def run_worker(poll_seconds: int, idle_seconds: int) -> None:
     """Queue खाली होने पर लगातार poll करें और long jobs के दौरान heartbeat बनाए रखें."""
     LOGGER.info("Continuous crawler worker started")
+    try:
+        enqueue_configured_data_gov_sources()
+    except (psycopg.Error, RuntimeError):
+        LOGGER.exception("Could not enqueue configured data.gov.in API resources")
     heartbeat_thread = Thread(target=_worker_heartbeat_loop, name="worker-heartbeat", daemon=True)
     heartbeat_thread.start()
     while not STOP.is_set():

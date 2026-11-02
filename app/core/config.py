@@ -20,12 +20,16 @@ class Settings:
     crawler_timeout_seconds: int = int(os.getenv("CRAWLER_TIMEOUT_SECONDS", "20"))
     crawler_max_bytes: int = int(os.getenv("CRAWLER_MAX_BYTES", "12000000"))
     crawler_poll_seconds: int = int(os.getenv("CRAWLER_POLL_SECONDS", "2"))
-    crawler_idle_seconds: int = int(os.getenv("CRAWLER_IDLE_SECONDS", "10"))
+    # After a completed job, poll again after two seconds; keep jobs sequential.
+    crawler_idle_seconds: int = int(os.getenv("CRAWLER_IDLE_SECONDS", "2"))
     crawler_links_per_page: int = int(os.getenv("CRAWLER_LINKS_PER_PAGE", "25"))
     crawler_max_pages_per_source: int = int(os.getenv("CRAWLER_MAX_PAGES_PER_SOURCE", "250"))
     crawler_recrawl_hours: int = int(os.getenv("CRAWLER_RECRAWL_HOURS", "24"))
     scheduler_token: str | None = os.getenv("OFFICIAL_DISCOVERY_TOKEN")
     scheduler_max_jobs_per_run: int = int(os.getenv("OFFICIAL_DISCOVERY_MAX_JOBS", "6"))
+    data_gov_api_key: str | None = os.getenv("DATA_GOV_API_KEY")
+    data_gov_resource_ids: str = os.getenv("DATA_GOV_RESOURCE_IDS", "")
+    data_gov_api_page_limit: int = int(os.getenv("DATA_GOV_API_PAGE_LIMIT", "100"))
 
 
 settings = Settings()
