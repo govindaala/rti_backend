@@ -4,8 +4,13 @@
 import psycopg
 from fastapi import APIRouter, HTTPException
 
-from app.models.research import LegalResearchQuery, LegalResearchResponse
-from app.services.research import run_legal_research
+from app.models.research import (
+    LegalApplicationRequest,
+    LegalApplicationResponse,
+    LegalResearchQuery,
+    LegalResearchResponse,
+)
+from app.services.research import apply_verified_legal_knowledge, run_legal_research
 
 router = APIRouter(prefix="/research", tags=["कानूनी शोध"])
 
@@ -19,3 +24,14 @@ def search_legal_knowledge(payload: LegalResearchQuery) -> LegalResearchResponse
         raise HTTPException(status_code=503, detail="कानूनी ज्ञान-संग्रह अभी configure नहीं है") from exc
     except psycopg.Error as exc:
         raise HTTPException(status_code=503, detail="कानूनी खोज सेवा अस्थायी रूप से अनुपलब्ध है") from exc
+
+
+@router.post("/apply", response_model=LegalApplicationResponse, summary="नए प्रश्न पर सत्यापित निर्णयों का अनुप्रयोग")
+def apply_legal_knowledge(payload: LegalApplicationRequest) -> LegalApplicationResponse:
+    """केवल verified corpus से समानताएँ खोजें; परिणाम प्रारंभिक शोध-सहायता है."""
+    try:
+        return apply_verified_legal_knowledge(payload)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail="कानूनी ज्ञान-संग्रह अभी configure नहीं है") from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail="कानूनी अनुप्रयोग सेवा अस्थायी रूप से अनुपलब्ध है") from exc
