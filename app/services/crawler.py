@@ -275,7 +275,9 @@ def fetch_document(
             raise ValueError("Redirect requires manual source review")
         response.raise_for_status()
         content_type = response.headers.get("content-type", "").split(";")[0].lower()
-        if content_type not in ("application/pdf", "text/html", "application/xhtml+xml", "application/json"):
+        if content_type not in (
+            "application/pdf", "text/html", "application/xhtml+xml", "application/json"
+        ):
             raise ValueError("Unsupported content type")
         body = bytearray()
         for chunk in response.iter_bytes():
