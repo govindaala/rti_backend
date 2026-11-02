@@ -52,10 +52,13 @@ class PrincipleReview(BaseModel):
     reviewer_note: str = Field(min_length=20, max_length=1500)
     confirm_reviewed: bool
     superseded_by_document_id: UUID | None = None
+    subsequent_treatment: list[str] = Field(default_factory=list, max_length=20)
 
     @model_validator(mode="after")
     def validate_review(self):
         self.reviewer_note = self.reviewer_note.strip()
+        if len(self.reviewer_note) < 20:
+            raise ValueError("समीक्षा टिप्पणी कम से कम 20 अक्षरों की होनी चाहिए")
         if not self.confirm_reviewed:
             raise ValueError("स्पष्ट मानव समीक्षा की पुष्टि आवश्यक है")
         if self.legal_status in {LegalStatus.OVERRULED, LegalStatus.SUPERSEDED}:
