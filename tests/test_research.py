@@ -65,6 +65,7 @@ def test_legal_application_uses_verified_evidence_and_returns_traceable_sources(
         }]
 
     monkeypatch.setattr(research, "search_verified_documents", fake_search)
+    monkeypatch.setattr(research, "search_verified_principles", lambda *_args: [])
     response = client.post(
         "/api/v1/research/apply",
         json={
@@ -87,6 +88,7 @@ def test_legal_application_uses_verified_evidence_and_returns_traceable_sources(
 
 def test_legal_application_neutral_role_returns_empty_when_verified_corpus_is_empty(monkeypatch) -> None:
     monkeypatch.setattr(research, "search_verified_documents", lambda _query, _limit=10: [])
+    monkeypatch.setattr(research, "search_verified_principles", lambda *_args: [])
     response = client.post(
         "/api/v1/research/apply",
         json={"question": "सूचना की प्रमाणित प्रति देने का नियम क्या है?", "role": "neutral"},
