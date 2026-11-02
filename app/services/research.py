@@ -115,6 +115,7 @@ def apply_verified_legal_knowledge(
         question=request.question,
         role=request.role,
         evidence=evidence,
+        result_count=len(evidence),
         common_legal_checks=common_checks,
         role_specific_checks=role_checks[request.role],
         limitations=[
