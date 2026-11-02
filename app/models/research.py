@@ -34,3 +34,37 @@ class LegalResearchResponse(BaseModel):
     results: list[LegalEvidence]
     result_count: int
     note: str
+
+
+class LegalApplicationRequest(BaseModel):
+    """नए तथ्य पर verified corpus के निर्णय लागू करने का पारदर्शी अनुरोध."""
+    model_config = ConfigDict(extra="forbid")
+    question: str = Field(min_length=8, max_length=2000)
+    role: str = Field(default="applicant", pattern="^(applicant|pio|neutral)$")
+    limit: int = Field(default=8, ge=1, le=15)
+
+
+class AppliedLegalEvidence(BaseModel):
+    """प्रासंगिकता संकेत और सत्यापित निर्णय का traceable reference."""
+    document_id: str
+    title: str
+    canonical_url: str
+    authority: str | None = None
+    decision_date: date | None = None
+    legal_issue: str | None = None
+    holding: str | None = None
+    cited_sections: list[str] = Field(default_factory=list)
+    content_sha256: str | None = None
+    matched_terms: list[str] = Field(default_factory=list)
+    relevance_label: str
+
+
+class LegalApplicationResponse(BaseModel):
+    """नए प्रश्न के लिए स्रोत-आधारित तुलनात्मक विश्लेषण."""
+    question: str
+    role: str
+    evidence: list[AppliedLegalEvidence]
+    common_legal_checks: list[str]
+    role_specific_checks: list[str]
+    limitations: list[str]
+    result_count: int
