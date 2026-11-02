@@ -53,6 +53,9 @@ uvicorn app.main:app --reload
 | `ADMIN_ID` | Admin login ID |
 | `ADMIN_PASS` | Admin password |
 | `ADMIN_SESSION_SECRET` | अलग random signing secret; कम से कम 32 bytes |
+| `DATA_GOV_API_KEY` | data.gov.in की API key; केवल Render/server secret में रखें |
+| `DATA_GOV_RESOURCE_IDS` | comma-separated data.gov.in dataset resource IDs |
+| `DATA_GOV_API_PAGE_LIMIT` | प्रति API request अधिकतम records; default 100, maximum 1000 |
 | `DATABASE_URL` | Supabase PostgreSQL connection string |
 
 `ADMIN_SESSION_SECRET` को `ADMIN_PASS` से अलग रखें। किसी भी secret को GitHub, browser code, README, logs या chat में न डालें। Browser को केवल 8 घंटे की signed `HttpOnly`, `Secure`, `SameSite=Strict` session cookie मिलती है। State-changing admin requests में CSRF token आवश्यक है। पासवर्ड या signing secret बदलने पर पुराने sessions अमान्य हो जाते हैं।
@@ -71,6 +74,14 @@ Supabase project के private `rti` schema में मुख्य tables:
 Schema changes `supabase/migrations/` में version-controlled हैं। OCR states के लिए `supabase/migrations/20261101133000_add_ocr_extraction_state.sql` को connected Supabase project में लागू करना आवश्यक है; GitHub में migration file होने से production database अपने-आप update नहीं होता। `rti` schema को browser के `anon` या `authenticated` roles के लिए expose न करें; backend के server-side database role से ही access दें। RLS enabled रहना चाहिए।
 
 पहले साझा किया गया database password सुरक्षित नहीं माना जाना चाहिए; उसे Supabase में rotate करके ही नई `DATABASE_URL` बनाएं। Production में least-privilege database role और tested backup/restore प्रक्रिया आवश्यक है।
+
+## data.gov.in API integration
+
+Worker में वैकल्पिक JSON API ingestion उपलब्ध है। Render worker के server-side environment में `DATA_GOV_API_KEY` और `DATA_GOV_RESOURCE_IDS` (comma-separated resource IDs) सेट करने पर worker configured resources को queue में डालता है। API key request के समय जोड़ी जाती है; source URL या database record में key नहीं रखी जाती। API results सामान्य extracted documents की तरह `review_required` रहते हैं और स्वतः verified legal material नहीं बनते। API key और resource IDs सेट किए बिना कोई data.gov.in API request नहीं होती।
+
+data.gov.in पर उपलब्ध datasets अलग-अलग हैं; यह integration सभी सरकारी निर्णयों या सभी dataset records की उपलब्धता की गारंटी नहीं देता। Resource ID चुनने से पहले dataset का विषय, publisher, update date और API availability जाँचें।
+
+LiveLaw की वर्तमान Terms of Use सामग्री को सामान्यतः व्यक्तिगत/गैर-व्यावसायिक उपयोग तक सीमित करती हैं। इसलिए LiveLaw लेखों का bulk crawling या पूरा पाठ अपने corpus में copy करना तब तक सक्षम नहीं किया जाएगा जब तक स्पष्ट अनुमति/लाइसेंस न हो। आवश्यकता होने पर केवल citation/link metadata या लिखित अनुमति प्राप्त feed/API को अलग adapter से जोड़ा जा सकता है।
 
 ## Official-source crawler
 
