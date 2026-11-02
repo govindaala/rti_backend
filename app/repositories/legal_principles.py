@@ -73,6 +73,7 @@ def list_pending_principles(limit: int = 50) -> list[dict[str, Any]]:
 def review_principle(
     principle_id: UUID, status: str, reviewer_note: str,
     reviewer: str, superseded_by_document_id: UUID | None,
+    subsequent_treatment: list[str],
 ) -> dict[str, Any] | None:
     with get_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
@@ -101,7 +102,7 @@ def review_principle(
                  AND (%s <> 'verified_current' OR jsonb_array_length(p.pinpoint_citations) > 0)
                RETURNING p.id::text, p.legal_status, p.reviewed_at""",
             (status, reviewer_note, reviewer, superseded_by_document_id,
-             Jsonb([]), principle_id, status),
+             Jsonb(subsequent_treatment), principle_id, status),
         )
         row = cursor.fetchone()
         if row:
