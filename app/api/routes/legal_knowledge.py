@@ -8,7 +8,10 @@ from uuid import UUID
 from app.core.admin_auth import require_admin
 from app.models.legal_principle import PrincipleCreate, PrincipleReview
 from app.repositories.legal_principles import (
-    create_pending_principle, list_pending_principles, list_principles_needing_subsequent_review, review_principle,
+    create_pending_principle,
+    list_pending_principles,
+    list_principles_needing_subsequent_review,
+    review_principle,
     search_verified_principles,
 )
 
