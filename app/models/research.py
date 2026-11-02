@@ -80,6 +80,9 @@ class AppliedLegalPrinciple(BaseModel):
     pinpoint_citations: list[dict] = Field(default_factory=list)
     legal_status: str
     subsequent_treatment: list[str] = Field(default_factory=list)
+    matched_terms: list[str] = Field(default_factory=list)
+    application_signal: str = "needs_fact_comparison"
+    application_trace: list[str] = Field(default_factory=list)
 
 
 class LegalApplicationResponse(BaseModel):
