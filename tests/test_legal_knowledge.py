@@ -85,3 +85,6 @@ def test_verified_principles_are_added_to_application_response(monkeypatch):
     )
     assert response.verified_principles[0].principle_id == "p-verified"
     assert response.verified_principles[0].legal_status == "verified_current"
+    assert response.verified_principles[0].application_signal == "potentially_relevant_review_facts"
+    assert "व्यक्तिगत" in response.verified_principles[0].matched_terms
+    assert any("शर्तों और अपवादों" in item for item in response.verified_principles[0].application_trace)
