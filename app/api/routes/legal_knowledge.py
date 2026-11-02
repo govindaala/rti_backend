@@ -55,6 +55,8 @@ def review_one(principle_id: UUID, payload: PrincipleReview, request: Request,
         if not result:
             raise HTTPException(status_code=404, detail="सिद्धांत नहीं मिला या स्रोत verified नहीं है")
         return {"reviewed": True, **result}
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except psycopg.Error as exc:
         raise HTTPException(status_code=503, detail="Legal knowledge store unavailable") from exc
 
