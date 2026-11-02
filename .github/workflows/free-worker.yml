@@ -3,8 +3,8 @@ name: Free GitHub Actions Crawler Worker
 
 on:
   schedule:
-    # Every 10 minutes; offset away from the top of the hour to reduce schedule delays.
-    - cron: "2,12,22,32,42,52 * * * *"
+    # GitHub Actions schedule minimum practical cadence: every 5 minutes.
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -18,7 +18,7 @@ jobs:
   crawl:
     name: Process a small batch of official-source jobs
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 20
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
     steps:
@@ -82,7 +82,7 @@ jobs:
           try:
               recovered = recover_stale_jobs()
               processed = 0
-              for _ in range(3):
+              for _ in range(5):
                   if not process_one():
                       break
                   processed += 1
@@ -91,7 +91,7 @@ jobs:
                       {
                           "recovered_stale_jobs": recovered,
                           "processed_jobs": processed,
-                          "batch_limit": 3,
+                          "batch_limit": 5,
                           "ocr_ready": report.get("ocr_ready", False),
                           "warnings": report.get("warnings", []),
                       },
