@@ -24,6 +24,8 @@
 
 ## परियोजना की crawl प्राथमिकता
 
-पहला चरण केवल CIC corpus है। योजना 1 नवंबर 2026 से पीछे की ओर 10 सितंबर 2016 तक निर्णय खोजने की है। पुराने निर्णयों का अलग पोर्टल अलग source path है; केवल homepage या सामान्य sitemap crawl को पूर्ण CIC corpus न माना जाए।
+पहला चरण केवल CIC corpus है। scheduled GitHub Actions batch worker अब केवल उन `research_sources` records की jobs चुनता है जिनका seed hostname `cic.gov.in` या `www.cic.gov.in` है। दूसरी संस्थाओं के पुराने queued sources बाद के चरण तक queue में ही रहेंगे। CIC source से निकले child links उसी CIC source ID से जुड़े रहते हैं; प्रत्येक child URL पर robots/access policy फिर भी लागू होती है।
+
+योजना 1 नवंबर 2026 से पीछे की ओर 10 सितंबर 2016 तक निर्णय खोजने की है। पुराने निर्णयों का अलग पोर्टल अलग source path है; केवल homepage या सामान्य sitemap crawl को पूर्ण CIC corpus न माना जाए।
 
 Supreme Court, High Courts और State Information Commissions की ingestion CIC चरण के बाद ही शुरू की जाए।
