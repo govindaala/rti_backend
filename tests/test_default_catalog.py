@@ -1,8 +1,13 @@
+# रिपॉजिटरी पथ: rti_backend/tests/test_default_catalog.py
+"""प्राथमिक सरकारी स्रोत सूची के परीक्षण."""
+
 from app.services.default_catalog import DEFAULT_SOURCE_CATALOG, RELATED_LAW_DISCOVERY, catalog_urls
 
 
 def test_default_catalog_has_central_rti_sources_and_all_india_directories():
     urls = catalog_urls()
+    assert "https://cic.gov.in/" in urls
+    assert "https://cic.gov.in/decision" in urls
     assert "https://cic.gov.in/rti_act" in urls
     assert "https://www.cic.gov.in/links-to-state-information-commissions" in urls
     assert "https://ecommitteesci.gov.in/high-courts/" in urls
