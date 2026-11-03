@@ -110,9 +110,10 @@ def test_recover_stale_jobs_uses_database_lease_timeout(monkeypatch) -> None:
     monkeypatch.setattr(worker, "get_connection", lambda: connection)
 
     assert worker.recover_stale_jobs(stale_after_seconds=90) == 2
-    assert connection.fake_cursor.params == (90,)
+    assert connection.fake_cursor.params == (90, None, None)
     assert "WORKER_LEASE_EXPIRED" in connection.fake_cursor.query
     assert "status = 'running'" in connection.fake_cursor.query
+    assert "source_id = ANY" in connection.fake_cursor.query
 
 
 def test_ocr_required_document_is_not_marked_review_ready() -> None:
@@ -266,3 +267,45 @@ def test_record_worker_heartbeat_rejects_unknown_status() -> None:
 
     with pytest.raises(ValueError):
         worker.record_worker_heartbeat("healthy")
+
+
+
+def test_recover_stale_jobs_can_be_limited_to_selected_sources(monkeypatch) -> None:
+    """CIC batch की lease recovery दूसरी source records को न छुए."""
+    class FakeCursor:
+        def __init__(self) -> None:
+            self.params = None
+            self.query = ""
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, query, params=None):
+            self.query = query
+            self.params = params
+
+        def fetchone(self):
+            return (1,)
+
+    class FakeConnection:
+        def __init__(self):
+            self.fake_cursor = FakeCursor()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return self.fake_cursor
+
+    connection = FakeConnection()
+    monkeypatch.setattr(worker, "get_connection", lambda: connection)
+
+    assert worker.recover_stale_jobs(allowed_source_ids=["cic-source-1"]) == 1
+    assert connection.fake_cursor.params == (300, ["cic-source-1"], ["cic-source-1"])
+    assert "source_id = ANY" in connection.fake_cursor.query

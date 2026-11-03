@@ -14,9 +14,15 @@ def test_batch_worker_processes_only_cic_source_jobs_and_closes_heartbeat(monkey
     heartbeats = []
     outcomes = iter([True, True, False])
     processed_source_ids = []
+    recovered_source_ids = []
 
     monkeypatch.setattr(worker, "record_worker_heartbeat", heartbeats.append)
-    monkeypatch.setattr(worker, "recover_stale_jobs", lambda: 3)
+
+    def fake_recover(allowed_source_ids=None):
+        recovered_source_ids.append(allowed_source_ids)
+        return 3
+
+    monkeypatch.setattr(worker, "recover_stale_jobs", fake_recover)
     monkeypatch.setattr(worker_batch, "_cic_source_ids", lambda: ["cic-source-1"])
     monkeypatch.setattr(
         worker,
@@ -34,6 +40,7 @@ def test_batch_worker_processes_only_cic_source_jobs_and_closes_heartbeat(monkey
         "batch_limit": 5,
         "cic_source_count": 1,
     }
+    assert recovered_source_ids == [["cic-source-1"]]
     assert processed_source_ids == [["cic-source-1"]] * 3
     assert heartbeats == ["running", "stopped"]
 
