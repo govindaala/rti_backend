@@ -19,8 +19,8 @@
 1. पहले CIC landing page और उससे उपलब्ध सार्वजनिक metadata को सुरक्षित रूप से पढ़ें।
 2. 10 सितंबर 2016 की सीमा को बनाए रखें: नए और पुराने निर्णयों के लिए CIC के अलग-अलग आधिकारिक पोर्टल हैं।
 3. निर्णयों की खोज/डाउनलोड तभी automate करें जब आधिकारिक portal robots/access policy इसकी अनुमति दे या CIC कोई documented public API/feed उपलब्ध कराए।
-4. CAPTCHA वाले form को automated तरीके से हल न करें। आवश्यक हो तो अधिकृत मानव reviewer आधिकारिक portal पर निर्णय खोजे और उपलब्ध वैध document URL को review queue में जोड़े।
-5. प्रत्येक प्राप्त निर्णय को `review_required` में रखें; तारीख, आयोग, केस/अपील संख्या, पक्षकार, source URL और content hash दर्ज करें। मानव सत्यापन के बिना उसे verified legal corpus में न डालें।
+4. CAPTCHA वाले form को automated तरीके से हल न करें। अधिकृत मानव reviewer आधिकारिक portal पर निर्णय खोजकर citation और उपलब्ध metadata दर्ज कर सकता है; इससे automated fetch की अनुमति नहीं मिलती।
+5. प्रत्येक वैध रूप से प्राप्त निर्णय को `review_required` में रखें; तारीख, आयोग, केस/अपील संख्या, पक्षकार, source URL और content hash दर्ज करें। मानव सत्यापन के बिना उसे verified legal corpus में न डालें।
 
 ## परियोजना की crawl प्राथमिकता
 
