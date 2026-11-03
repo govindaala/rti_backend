@@ -63,8 +63,8 @@ def run_batch(max_jobs: int = 5, idle_seconds: int = 2) -> dict[str, int]:
     processed = 0
     cic_source_ids: list[str] = []
     try:
-        recovered = worker.recover_stale_jobs()
         cic_source_ids = _cic_source_ids()
+        recovered = worker.recover_stale_jobs(allowed_source_ids=cic_source_ids)
         for index in range(max_jobs):
             if not worker.process_one(allowed_source_ids=cic_source_ids):
                 break
