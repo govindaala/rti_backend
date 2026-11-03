@@ -196,7 +196,10 @@ def enqueue_configured_data_gov_sources() -> int:
     return queued
 
 
-def recover_stale_jobs(stale_after_seconds: int = 300) -> int:
+def recover_stale_jobs(
+    stale_after_seconds: int = 300,
+    allowed_source_ids: list[str] | None = None,
+) -> int:
     """Crash हुए worker की lease समाप्त jobs को retry queue में वापस रखें."""
     with get_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
@@ -219,6 +222,7 @@ def recover_stale_jobs(stale_after_seconds: int = 300) -> int:
                 WHERE status = 'running'
                   AND COALESCE(heartbeat_at, started_at, created_at)
                       < now() - make_interval(secs => %s)
+                  AND (%s::uuid[] IS NULL OR source_id = ANY(%s::uuid[]))
                 RETURNING id, source_id, status
             ),
             event_rows AS (
@@ -254,7 +258,7 @@ def recover_stale_jobs(stale_after_seconds: int = 300) -> int:
             )
             SELECT count(*) FROM recovered
             """,
-            (stale_after_seconds,),
+            (stale_after_seconds, allowed_source_ids, allowed_source_ids),
         )
         recovered_count = cursor.fetchone()[0]
     if recovered_count:
