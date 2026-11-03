@@ -59,60 +59,32 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install .
 
-      - name: Validate database and process up to three queued documents
+      - name: Validate database and process up to five queued documents
         if: steps.secret.outputs.configured == 'true'
         shell: bash
         run: |
           python - <<'PY'
           import json
           import sys
-          from app.worker import (
-              preflight,
-              process_one,
-              record_worker_heartbeat,
-              recover_stale_jobs,
-          )
+          from app.worker import preflight
+          from app.worker_batch import run_batch
 
           report = preflight()
           print("Worker preflight:", json.dumps(report, ensure_ascii=False))
           if not report.get("ok"):
               sys.exit("Worker preflight failed; no crawl job was started.")
 
-          record_worker_heartbeat("running")
-          try:
-              recovered = recover_stale_jobs()
-              processed = 0
-              for _ in range(5):
-                  if not process_one():
-                      break
-                  processed += 1
-              print(
-                  json.dumps(
-                      {
-                          "recovered_stale_jobs": recovered,
-                          "processed_jobs": processed,
-                          "batch_limit": 5,
-                          "ocr_ready": report.get("ocr_ready", False),
-                          "warnings": report.get("warnings", []),
-                      },
-                      ensure_ascii=False,
-                  )
-              )
-              with open("worker-result.json", "w", encoding="utf-8") as result_file:
-                  json.dump(
-                      {
-                          "recovered_stale_jobs": recovered,
-                          "processed_jobs": processed,
-                          "batch_limit": 3,
-                          "ocr_ready": report.get("ocr_ready", False),
-                          "warnings": report.get("warnings", []),
-                      },
-                      result_file,
-                      ensure_ascii=False,
-                      indent=2,
-                  )
-          finally:
-              record_worker_heartbeat("stopped")
+          result = run_batch(max_jobs=5, idle_seconds=2)
+          result.update(
+              {
+                  "ocr_ready": report.get("ocr_ready", False),
+                  "warnings": report.get("warnings", []),
+              }
+          )
+          print(json.dumps(result, ensure_ascii=False))
+          with open("worker-result.json", "w", encoding="utf-8") as result_file:
+              json.dump(result, result_file, ensure_ascii=False, indent=2)
+          PY
 
       - name: Publish worker result
         if: always() && steps.secret.outputs.configured == 'true'
