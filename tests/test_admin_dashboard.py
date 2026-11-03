@@ -480,3 +480,80 @@ def test_queue_health_flags_ready_jobs_when_worker_heartbeat_is_stale(monkeypatc
     assert payload["worker_status"] == "stale"
     assert payload["queue_health"] == "attention"
     assert payload["queued_ready"] == 2
+
+
+
+def test_scheduled_official_discovery_waits_two_seconds_between_jobs(monkeypatch):
+    """Scheduler batch में प्रत्येक सफल job के बाद ठीक दो सेकंड रुकें."""
+    configured = replace(
+        admin_routes.settings,
+        scheduler_token="scheduler-test-token",
+        scheduler_max_jobs_per_run=3,
+    )
+    monkeypatch.setattr(admin_routes, "settings", configured)
+    monkeypatch.setattr(
+        admin_routes,
+        "DEFAULT_SOURCE_CATALOG",
+        (
+            {"name": "CIC home", "url": "https://cic.gov.in/"},
+            {"name": "CIC decisions", "url": "https://cic.gov.in/decision"},
+        ),
+    )
+
+    class FakeCursor:
+        def __init__(self):
+            self.fetchone_results = iter([
+                ("source-1",),
+                ("job-1",),
+                ("source-2",),
+                ("job-2",),
+            ])
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, _query, _params=None):
+            return None
+
+        def fetchone(self):
+            return next(self.fetchone_results)
+
+    class FakeConnection:
+        def __init__(self):
+            self.fake_cursor = FakeCursor()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return self.fake_cursor
+
+    monkeypatch.setattr(admin_routes, "get_connection", lambda: FakeConnection())
+    outcomes = iter([True, True, False])
+    processed_source_ids = []
+    monkeypatch.setattr(
+        admin_routes,
+        "process_one",
+        lambda allowed_source_ids=None: (
+            processed_source_ids.append(allowed_source_ids) or next(outcomes)
+        ),
+    )
+    pauses = []
+    monkeypatch.setattr(admin_routes.time, "sleep", pauses.append)
+
+    response = client.post(
+        "/api/v1/scheduler/official-discovery",
+        headers={"Authorization": "Bearer scheduler-test-token"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["processed_jobs"] == 2
+    assert response.json()["official_sources"] == 2
+    assert processed_source_ids == [["source-1", "source-2"]] * 3
+    assert pauses == [2, 2]

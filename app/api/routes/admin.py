@@ -3,6 +3,7 @@
 
 import hmac
 import logging
+import time
 from urllib.parse import urlsplit
 
 import psycopg
@@ -646,10 +647,12 @@ def scheduled_official_discovery(authorization: str | None = Header(default=None
                     )
         limit = max(1, min(settings.scheduler_max_jobs_per_run, 20))
         processed = 0
-        for _ in range(limit):
+        for index in range(limit):
             if not process_one(allowed_source_ids=source_ids):
                 break
             processed += 1
+            if index + 1 < limit:
+                time.sleep(2)
         return {"ok": True, "official_sources": len(source_ids), "new_jobs": new_jobs,
                 "processed_jobs": processed, "job_limit": limit,
                 "preliminary_analysis": "local extractive; human review required",
