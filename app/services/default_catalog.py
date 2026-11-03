@@ -1,3 +1,4 @@
+# रिपॉजिटरी पथ: rti_backend/app/services/default_catalog.py
 """Default official-source catalogue for Indian RTI legal research.
 
 URLs are seed/discovery entry points, not guarantees that every decision is publicly
@@ -7,6 +8,7 @@ from __future__ import annotations
 
 DEFAULT_SOURCE_CATALOG: tuple[dict[str, str], ...] = (
     {"name": "Central Information Commission — Decisions", "category": "information_commission", "jurisdiction": "central", "url": "https://cic.gov.in/"},
+    {"name": "Central Information Commission — Decision search landing page (10 September 2016 split)", "category": "information_commission_decisions", "jurisdiction": "central", "url": "https://cic.gov.in/decision"},
     {"name": "Central Information Commission — State Commission directory", "category": "directory", "jurisdiction": "central", "url": "https://www.cic.gov.in/links-to-state-information-commissions"},
     {"name": "Department of Personnel and Training — RTI portal", "category": "law_and_guidance", "jurisdiction": "central", "url": "https://rti.dopt.gov.in/"},
     {"name": "India Code — RTI Act, 2005", "category": "legislation", "jurisdiction": "central", "url": "https://www.indiacode.nic.in/"},
@@ -26,6 +28,7 @@ RELATED_LAW_DISCOVERY: tuple[dict[str, str], ...] = (
     {"name": "Official Gazette of India — notifications and amendments", "url": "https://egazette.gov.in/"},
     {"name": "India Code — central acts, rules and amendments", "url": "https://www.indiacode.nic.in/"},
 )
+
 
 def catalog_urls() -> tuple[str, ...]:
     """Return unique seed URLs suitable for an operator-reviewed initial import."""
