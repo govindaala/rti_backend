@@ -95,6 +95,16 @@ class LegalApplicationResponse(BaseModel):
     answer_guidance: list[str] = Field(default_factory=list)
     evidence: list[AppliedLegalEvidence]
     verified_principles: list[AppliedLegalPrinciple] = Field(default_factory=list)
+    answer_status: str = "insufficient_verified_material"
+    direct_answer: str
+    legal_basis: list[dict] = Field(default_factory=list)
+    case_positions: list[dict] = Field(default_factory=list)
+    conditions_to_check: list[str] = Field(default_factory=list)
+    exceptions_to_check: list[str] = Field(default_factory=list)
+    fact_gaps: list[str] = Field(default_factory=list)
+    next_steps: list[str] = Field(default_factory=list)
+    citations: list[dict] = Field(default_factory=list)
+    disclaimer: str
     common_legal_checks: list[str]
     role_specific_checks: list[str]
     limitations: list[str]
