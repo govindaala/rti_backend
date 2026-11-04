@@ -50,12 +50,12 @@
         <textarea id="question" rows="5" required minlength="20" data-placeholder="questionPlaceholder" placeholder="अपना प्रश्न, PIO का जवाब या संबंधित कानूनी स्थिति लिखें..."></textarea>
         <label for="documents" data-i18n="documentsLabel">दस्तावेज़ अपलोड (अभी उपलब्ध नहीं)</label>
         <input id="documents" type="file" accept=".pdf,.txt,.doc,.docx,.jpg,.jpeg,.png" multiple disabled>
-        <p class="hint" data-i18n="privacyHint">आपका प्रश्न backend पर भेजकर केवल नियम-आधारित प्रारंभिक जाँच सूची बनाई जाएगी। यह AI कानूनी राय नहीं है।</p>
-        <button class="primary" type="submit" data-i18n="submitQuestion">प्रारंभिक जाँच सूची बनाएँ</button>
+        <p class="hint" data-i18n="privacyHint">आपका प्रश्न सत्यापित CIC फैसलों में खोजा जाएगा। स्रोतों के साथ प्रारंभिक शोध परिणाम मिलेंगे।</p>
+        <button class="primary" type="submit" data-i18n="submitQuestion">संबंधित निर्णय खोजें</button>
         <p class="notice" id="analysis-status" role="status" aria-live="polite"></p>
       </form>
       <section id="analysis-result" class="panel" hidden aria-live="polite">
-        <h3 data-i18n="resultTitle">प्रारंभिक जाँच सूची</h3>
+        <h3 data-i18n="resultTitle">स्रोत सहित शोध परिणाम</h3>
         <ol id="analysis-checklist"></ol>
         <p class="notice" id="analysis-result-notice"></p>
       </section>

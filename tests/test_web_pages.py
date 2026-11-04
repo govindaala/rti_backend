@@ -50,7 +50,7 @@ def test_admin_javascript_contains_human_document_review_action() -> None:
     assert "confirm_reviewed" in response.text
 
 
-def test_applicant_workspace_calls_live_checklist_api() -> None:
+def test_applicant_workspace_calls_verified_research_api() -> None:
     """Applicant form सक्रिय हो और backend checklist API से जुड़ा हो."""
     page = client.get("/app")
     script = client.get("/assets/app.js")
@@ -60,8 +60,11 @@ def test_applicant_workspace_calls_live_checklist_api() -> None:
     assert 'type="submit" data-i18n="submitQuestion"' in page.text
     assert 'type="submit" disabled' not in page.text
     assert script.status_code == 200
-    assert "/api/v1/analysis/checklist" in script.text
-    assert "rules-based preliminary checklist" in script.text
+    assert "/api/v1/research/apply" in script.text
+    assert "/api/v1/analysis/checklist" not in script.text
+    assert "result.evidence" in script.text
+    assert "result.verified_principles" in script.text
+    assert "मूल आधिकारिक स्रोत खोलें" in script.text
 
 
 def test_applicant_checklist_api_returns_rule_based_checks() -> None:
