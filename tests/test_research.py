@@ -96,3 +96,43 @@ def test_legal_application_neutral_role_returns_empty_when_verified_corpus_is_em
     assert response.status_code == 200
     assert response.json()["evidence"] == []
     assert response.json()["result_count"] == 0
+
+
+
+def test_legal_intelligence_understands_hindi_question_and_expands_terms():
+    from app.services.legal_intelligence import understand_question
+
+    plan = understand_question("PIO ne RTI ka jawab der se diya, kya us par jurmana lag sakta hai?")
+    assert plan.intent == "penalty_or_accountability"
+    assert "penalty_and_disciplinary_action" in plan.topics
+    assert len(plan.search_queries) == 2
+    assert "जुर्माना" in plan.key_terms
+
+
+def test_legal_intelligence_ranks_issue_and_holding_above_generic_excerpt():
+    from app.services.legal_intelligence import merge_ranked_documents, understand_question
+
+    plan = understand_question("क्या व्यक्तिगत सूचना धारा 8(1)(j) में रोकी जा सकती है?")
+    relevant = {
+        "document_id": "a", "title": "CIC privacy decision",
+        "legal_issue": "व्यक्तिगत सूचना और निजता", "holding": "धारा 8(1)(j) का परीक्षण",
+        "learned_summary": "privacy exemption", "cited_sections": ["8(1)(j)"],
+        "excerpt": "verified decision", "verification_status": "verified",
+    }
+    generic = {
+        "document_id": "b", "title": "General RTI order", "legal_issue": "सामान्य प्रक्रिया",
+        "holding": "सामान्य आदेश", "learned_summary": "", "cited_sections": [],
+        "excerpt": "व्यक्तिगत सूचना का उल्लेख", "verification_status": "verified",
+    }
+    results = merge_ranked_documents([generic, relevant], plan, 5)
+    assert results[0]["document_id"] == "a"
+    assert results[0]["_intelligence_score"] > results[1]["_intelligence_score"]
+
+
+def test_legal_intelligence_excludes_unverified_records():
+    from app.services.legal_intelligence import merge_ranked_documents, understand_question
+
+    plan = understand_question("धारा 20 का जुर्माना")
+    record = {"document_id": "unverified", "title": "धारा 20 जुर्माना",
+              "verification_status": "pending", "canonical_url": "https://example.test"}
+    assert merge_ranked_documents([record], plan, 5) == []
