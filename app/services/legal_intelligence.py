@@ -22,7 +22,7 @@ STOP_WORDS = {
 }
 # Each concept is a small bilingual vocabulary, not a claim about legal equivalence.
 CONCEPTS: dict[str, tuple[str, ...]] = {
-    "personal_information_privacy": ("निजी", "व्यक्तिगत", "निजता", "privacy", "personal", "private", "8(1)(j)"),
+    "personal_information_privacy": ("निजी", "व्यक्तिगत", "निजता", "niji", "vyaktigat", "nijta", "privacy", "personal", "private", "8(1)(j)"),
     "third_party_information": ("तीसरा पक्ष", "तृतीय पक्ष", "third party", "third-party", "धारा 11", "section 11"),
     "delay_and_time_limit": ("देरी", "विलंब", "deri", "vilamb", "samay seema", "समय सीमा", "समय-सीमा", "late", "delay", "time limit", "30 दिन", "48 घंटे"),
     "first_appeal": ("प्रथम अपील", "पहली अपील", "pratham apil", "pehli appeal", "first appeal", "faa", "धारा 19(1)", "section 19(1)"),
@@ -40,8 +40,8 @@ CONCEPTS: dict[str, tuple[str, ...]] = {
 
 INTENT_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("penalty_or_accountability", ("जुर्माना", "दंड", "jurmana", "dand", "penalty", "fine", "धारा 20", "dhara 20", "section 20")),
-    ("appeal_or_remedy", ("अपील", "शिकायत", "appeal", "complaint", "faa")),
-    ("delay_or_deadline", ("देरी", "विलंब", "कितने दिन", "समय सीमा", "late", "delay", "deadline", "time limit")),
+    ("appeal_or_remedy", ("अपील", "शिकायत", "apil", "shikayat", "appeal", "complaint", "faa")),
+    ("delay_or_deadline", ("देरी", "विलंब", "deri", "vilamb", "कितने दिन", "समय सीमा", "samay seema", "late", "delay", "deadline", "time limit")),
     ("disclosure_or_exemption", ("सूचना देने", "सूचना रोक", "अस्वीकृति", "छूट", "प्रकटीकरण", "disclosure", "denial", "exemption", "8(1)")),
     ("inspection_or_copy", ("निरीक्षण", "प्रमाणित प्रति", "प्रतिलिपि", "inspection", "certified copy")),
     ("fee_or_payment", ("शुल्क", "फीस", "fee", "charges", "payment")),
