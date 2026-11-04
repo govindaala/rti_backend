@@ -59,10 +59,10 @@ def apply_verified_legal_knowledge(
         raw = record
         score = raw.pop("_intelligence_score")
         matched = raw.pop("_matched_terms")
-        ratio = score / max(1.0, len(plan.key_terms))
-        if ratio >= 1.0:
+        coverage = len(matched) / max(1.0, len(plan.key_terms))
+        if coverage >= 0.30:
             label = "strong_concept_match"
-        elif ratio >= 0.35:
+        elif coverage >= 0.12:
             label = "moderate_concept_match"
         else:
             label = "possible_related_result"
@@ -81,13 +81,9 @@ def apply_verified_legal_knowledge(
             relevance_score=score,
         ))
 
-    common_checks = [
-        "पहले निर्णय का पूरा operative order और संबंधित pinpoint paragraph पढ़ें।",
-        "यह जाँचें कि उद्धृत सिद्धांत बाद के उच्चतर/समन्वय पीठ के निर्णय से बदला, सीमित या पलटा तो नहीं गया।",
-        "निर्णय के तथ्य, पक्षकार, मंच और लागू वैधानिक प्रावधान वर्तमान प्रश्न से मिलाएँ।",
-        "केवल समान धारा दिखने से दोनों मामलों को समान न मानें; अपवाद, proviso और तथ्यात्मक अंतर जाँचें।",
-        "हर निष्कर्ष को उसके आधिकारिक स्रोत URL और पैराग्राफ से जोड़ें।",
-    ]
+    # हर प्रश्न के intent के अनुसार guidance बदलती है; fixed five-point template हटाया गया.
+    common_checks = []
+
     role_checks = {
         "applicant": [
             "आवेदक द्वारा माँगी गई सूचना और रिकॉर्ड के अस्तित्व/नियंत्रण को स्पष्ट करें।",
