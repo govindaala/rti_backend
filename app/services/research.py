@@ -11,6 +11,7 @@ from app.models.research import (
 )
 from app.repositories.legal_knowledge import search_verified_documents
 from app.repositories.legal_principles import search_verified_principles
+from app.services.legal_answer_engine import build_legal_answer
 from app.services.legal_intelligence import (
     TOKEN_RE,
     STOP_WORDS,
@@ -49,14 +50,15 @@ def apply_verified_legal_knowledge(
 ) -> LegalApplicationResponse:
     """Verified decisions को नए प्रश्न से मिलाएँ; कोई unverified holding न गढ़ें."""
     plan = understand_question(request.question)
-    # दो स्वतंत्र offline retrieval passes: user के मूल शब्द और पहचाने गए कानूनी concepts.
     candidates = []
     for query in plan.search_queries:
         candidates.extend(search_verified_documents(query, request.limit))
     ranked_records = merge_ranked_documents(candidates, plan, request.limit)
+
     evidence = []
+    answer_evidence = []
     for record in ranked_records:
-        raw = record
+        raw = dict(record)
         score = raw.pop("_intelligence_score")
         matched = raw.pop("_matched_terms")
         coverage = len(matched) / max(1.0, len(plan.key_terms))
@@ -80,10 +82,12 @@ def apply_verified_legal_knowledge(
             relevance_label=label,
             relevance_score=score,
         ))
+        answer_evidence.append({
+            **raw,
+            "title": raw.get("title") or raw.get("canonical_url"),
+        })
 
-    # हर प्रश्न के intent के अनुसार guidance बदलती है; fixed five-point template हटाया गया.
     common_checks = []
-
     role_checks = {
         "applicant": [
             "आवेदक द्वारा माँगी गई सूचना और रिकॉर्ड के अस्तित्व/नियंत्रण को स्पष्ट करें।",
@@ -134,6 +138,13 @@ def apply_verified_legal_knowledge(
             "application_trace": trace,
         })
 
+    answer = build_legal_answer(
+        question=request.question,
+        intent=plan.intent,
+        topics=list(plan.topics),
+        evidence=answer_evidence,
+        principles=traced_principles,
+    )
     return LegalApplicationResponse(
         question=request.question,
         role=request.role,
@@ -142,6 +153,7 @@ def apply_verified_legal_knowledge(
         answer_guidance=list(plan.guidance),
         evidence=evidence,
         verified_principles=traced_principles,
+        **answer,
         result_count=len(evidence),
         common_legal_checks=common_checks,
         role_specific_checks=role_checks[request.role],
