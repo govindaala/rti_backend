@@ -1,7 +1,6 @@
 # रिपॉजिटरी पथ: rti_backend/app/services/research.py
 """कानूनी शोध सेवा; unverified crawler output कभी evidence नहीं बनता."""
 
-import re
 
 from app.models.research import (
     AppliedLegalEvidence,
@@ -12,6 +11,12 @@ from app.models.research import (
 )
 from app.repositories.legal_knowledge import search_verified_documents
 from app.repositories.legal_principles import search_verified_principles
+from app.services.legal_intelligence import (
+    TOKEN_RE,
+    STOP_WORDS,
+    merge_ranked_documents,
+    understand_question,
+)
 
 RESEARCH_NOTE = (
     "परिणाम केवल मानव-सत्यापित corpus से हैं। उद्धृत निर्णय की वर्तमान वैधता, "
@@ -30,21 +35,12 @@ def run_legal_research(query: LegalResearchQuery) -> LegalResearchResponse:
     )
 
 
-_TOKEN_PATTERN = re.compile(r"[\w\u0900-\u097F]{2,}", re.UNICODE)
-_STOP_WORDS = {
-    "और", "तथा", "क्या", "किस", "किसी", "कैसे", "कब", "है", "हैं", "था",
-    "थी", "थे", "को", "की", "का", "के", "से", "पर", "में", "लिए", "द्वारा",
-    "this", "that", "with", "from", "have", "has", "what", "when", "where",
-    "which", "who", "does", "shall", "will", "would", "could", "should",
-}
-
-
 def _terms(value: str) -> set[str]:
-    """Hindi/English legal query के meaningful lexical terms निकालें."""
+    """Hindi/English legal text के meaningful lexical terms निकालें."""
     return {
         token.lower()
-        for token in _TOKEN_PATTERN.findall(value)
-        if token.lower() not in _STOP_WORDS
+        for token in TOKEN_RE.findall(value)
+        if token.lower() not in STOP_WORDS
     }
 
 
@@ -52,41 +48,37 @@ def apply_verified_legal_knowledge(
     request: LegalApplicationRequest,
 ) -> LegalApplicationResponse:
     """Verified decisions को नए प्रश्न से मिलाएँ; कोई unverified holding न गढ़ें."""
-    ordered_terms = [
-        token.lower() for token in _TOKEN_PATTERN.findall(request.question)
-        if token.lower() not in _STOP_WORDS
-    ]
-    query_terms = set(ordered_terms)
-    # OR broadens natural-language retrieval; evidence remains verified-only.
-    retrieval_query = " OR ".join(dict.fromkeys(ordered_terms[:8])) or request.question
-    records = search_verified_documents(retrieval_query, request.limit)
+    plan = understand_question(request.question)
+    # दो स्वतंत्र offline retrieval passes: user के मूल शब्द और पहचाने गए कानूनी concepts.
+    candidates = []
+    for query in plan.search_queries:
+        candidates.extend(search_verified_documents(query, min(request.limit * 2, 30)))
+    ranked_records = merge_ranked_documents(candidates, plan, request.limit)
     evidence = []
-    for record in records:
-        searchable = " ".join(
-            str(record.get(key) or "")
-            for key in ("title", "learned_summary", "legal_issue", "holding")
-        ) + " " + " ".join(record.get("cited_sections") or [])
-        matched = sorted(query_terms & _terms(searchable))
-        # Ranking is a transparent lexical overlap indicator, not an AI confidence.
-        ratio = len(matched) / max(1, len(query_terms))
-        if ratio >= 0.35:
-            label = "strong_keyword_overlap"
-        elif ratio >= 0.15:
-            label = "partial_keyword_overlap"
+    for record in ranked_records:
+        raw = record
+        score = raw.pop("_intelligence_score")
+        matched = raw.pop("_matched_terms")
+        ratio = score / max(1.0, len(plan.key_terms))
+        if ratio >= 1.0:
+            label = "strong_concept_match"
+        elif ratio >= 0.35:
+            label = "moderate_concept_match"
         else:
-            label = "retrieved_for_review"
+            label = "possible_related_result"
         evidence.append(AppliedLegalEvidence(
-            document_id=record["document_id"],
-            title=record.get("title") or record["canonical_url"],
-            canonical_url=record["canonical_url"],
-            authority=record.get("authority"),
-            decision_date=record.get("decision_date"),
-            legal_issue=record.get("legal_issue"),
-            holding=record.get("holding"),
-            cited_sections=record.get("cited_sections") or [],
-            content_sha256=record.get("content_sha256"),
+            document_id=raw["document_id"],
+            title=raw.get("title") or raw["canonical_url"],
+            canonical_url=raw["canonical_url"],
+            authority=raw.get("authority"),
+            decision_date=raw.get("decision_date"),
+            legal_issue=raw.get("legal_issue"),
+            holding=raw.get("holding"),
+            cited_sections=raw.get("cited_sections") or [],
+            content_sha256=raw.get("content_sha256"),
             matched_terms=matched,
             relevance_label=label,
+            relevance_score=score,
         ))
 
     common_checks = [
@@ -112,7 +104,8 @@ def apply_verified_legal_knowledge(
             "विवादित तथ्य और अनुपलब्ध साक्ष्य को स्पष्ट रूप से चिह्नित करें।",
         ],
     }
-    principle_records = search_verified_principles(retrieval_query, min(request.limit, 8))
+    principle_query = " OR ".join(plan.key_terms[:20]) or request.question
+    principle_records = search_verified_principles(principle_query, min(request.limit, 8))
     traced_principles = []
     for principle in principle_records:
         searchable_principle = " ".join(
@@ -147,13 +140,16 @@ def apply_verified_legal_knowledge(
     return LegalApplicationResponse(
         question=request.question,
         role=request.role,
+        question_intent=plan.intent,
+        identified_topics=list(plan.topics),
+        answer_guidance=list(plan.guidance),
         evidence=evidence,
         verified_principles=traced_principles,
         result_count=len(evidence),
         common_legal_checks=common_checks,
         role_specific_checks=role_checks[request.role],
         limitations=[
-            "यह नियम-आधारित retrieval और keyword overlap है; generative AI/LLM reasoning नहीं।",
+            "यह offline Python intelligence है: Hindi-English intent पहचान, कानूनी concept expansion और explainable field-weighted ranking; यह paid LLM या generative legal opinion नहीं है।",
             "प्रासंगिकता label confidence score या binding precedent का निष्कर्ष नहीं है।",
             "केवल मानव-सत्यापित corpus के परिणाम शामिल हैं; खाली corpus पर कोई निर्णय लागू नहीं किया जा सकता।",
             "अंतिम कानूनी निष्कर्ष से पहले वर्तमान कानून, बाद के निर्णय, stay/appeal और मूल paragraph सत्यापित करें।",
