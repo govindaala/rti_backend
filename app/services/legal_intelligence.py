@@ -24,14 +24,14 @@ STOP_WORDS = {
 CONCEPTS: dict[str, tuple[str, ...]] = {
     "personal_information_privacy": ("निजी", "व्यक्तिगत", "निजता", "privacy", "personal", "private", "8(1)(j)"),
     "third_party_information": ("तीसरा पक्ष", "तृतीय पक्ष", "third party", "third-party", "धारा 11", "section 11"),
-    "delay_and_time_limit": ("देरी", "विलंब", "समय सीमा", "समय-सीमा", "late", "delay", "time limit", "30 दिन", "48 घंटे"),
-    "first_appeal": ("प्रथम अपील", "पहली अपील", "first appeal", "faa", "धारा 19(1)", "section 19(1)"),
+    "delay_and_time_limit": ("देरी", "विलंब", "deri", "vilamb", "samay seema", "समय सीमा", "समय-सीमा", "late", "delay", "time limit", "30 दिन", "48 घंटे"),
+    "first_appeal": ("प्रथम अपील", "पहली अपील", "pratham apil", "pehli appeal", "first appeal", "faa", "धारा 19(1)", "section 19(1)"),
     "second_appeal_and_cic": ("द्वितीय अपील", "दूसरी अपील", "second appeal", "cic", "केंद्रीय सूचना आयोग", "धारा 19(3)"),
     "complaint": ("शिकायत", "complaint", "धारा 18", "section 18"),
-    "penalty_and_disciplinary_action": ("जुर्माना", "दंड", "penalty", "fine", "धारा 20", "section 20"),
-    "inspection_and_copies": ("निरीक्षण", "अवलोकन", "प्रमाणित प्रति", "प्रतिलिपि", "inspection", "certified copy", "copy"),
-    "fees_and_cost": ("शुल्क", "फीस", "अतिरिक्त शुल्क", "fee", "fees", "charges", "cost"),
-    "disclosure_and_exemptions": ("सूचना देना", "प्रकटीकरण", "अस्वीकृति", "छूट", "exemption", "disclosure", "denial", "धारा 8", "section 8", "धारा 9", "section 9"),
+    "penalty_and_disciplinary_action": ("जुर्माना", "दंड", "jurmana", "dand", "penalty", "fine", "धारा 20", "section 20"),
+    "inspection_and_copies": ("निरीक्षण", "अवलोकन", "nirikshan", "pramanit prati", "प्रमाणित प्रति", "प्रतिलिपि", "pratilipi", "inspection", "certified copy", "copy"),
+    "fees_and_cost": ("शुल्क", "फीस", "shulk", "fees", "atirikt shulk", "अतिरिक्त शुल्क", "fee", "charges", "cost"),
+    "disclosure_and_exemptions": ("सूचना देना", "soochna", "suchna", "jaankari", "जानकारी", "प्रकटीकरण", "अस्वीकृति", "छूट", "rok", "mana", "exemption", "disclosure", "denial", "धारा 8", "dhara 8", "section 8", "धारा 9", "dhara 9", "section 9"),
     "record_search_and_non_availability": ("रिकॉर्ड नहीं", "अभिलेख उपलब्ध", "रिकॉर्ड उपलब्ध", "record not available", "not held", "missing record", "सूचना अस्तित्व में नहीं"),
     "severability_and_partial_disclosure": ("आंशिक", "पृथक्करण", "हटाकर", "severability", "partial disclosure", "धारा 10", "section 10"),
     "life_and_liberty": ("जीवन और स्वतंत्रता", "जीवन एवं स्वतंत्रता", "life and liberty", "48 घंटे"),
@@ -39,7 +39,7 @@ CONCEPTS: dict[str, tuple[str, ...]] = {
 }
 
 INTENT_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("penalty_or_accountability", ("जुर्माना", "दंड", "penalty", "fine", "धारा 20", "section 20")),
+    ("penalty_or_accountability", ("जुर्माना", "दंड", "jurmana", "dand", "penalty", "fine", "धारा 20", "dhara 20", "section 20")),
     ("appeal_or_remedy", ("अपील", "शिकायत", "appeal", "complaint", "faa")),
     ("delay_or_deadline", ("देरी", "विलंब", "कितने दिन", "समय सीमा", "late", "delay", "deadline", "time limit")),
     ("disclosure_or_exemption", ("सूचना देने", "सूचना रोक", "अस्वीकृति", "छूट", "प्रकटीकरण", "disclosure", "denial", "exemption", "8(1)")),
