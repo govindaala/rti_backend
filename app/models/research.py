@@ -57,6 +57,7 @@ class AppliedLegalEvidence(BaseModel):
     content_sha256: str | None = None
     matched_terms: list[str] = Field(default_factory=list)
     relevance_label: str
+    relevance_score: float = 0.0
 
 
 class AppliedLegalPrinciple(BaseModel):
@@ -89,6 +90,9 @@ class LegalApplicationResponse(BaseModel):
     """नए प्रश्न के लिए स्रोत-आधारित तुलनात्मक विश्लेषण."""
     question: str
     role: str
+    question_intent: str = "general_rti_question"
+    identified_topics: list[str] = Field(default_factory=list)
+    answer_guidance: list[str] = Field(default_factory=list)
     evidence: list[AppliedLegalEvidence]
     verified_principles: list[AppliedLegalPrinciple] = Field(default_factory=list)
     common_legal_checks: list[str]
