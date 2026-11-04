@@ -39,7 +39,7 @@ def test_application_uses_only_verified_search_and_returns_traceable_evidence(mo
     assert result.evidence[0].canonical_url.startswith("https://cic.gov.in/")
     assert "व्यक्तिगत" in result.evidence[0].matched_terms
     assert result.evidence[0].relevance_label in {
-        "strong_keyword_overlap", "partial_keyword_overlap", "retrieved_for_review"
+        "strong_concept_match", "moderate_concept_match", "possible_related_result"
     }
     assert any("केवल मानव-सत्यापित" in item for item in result.limitations)
     assert any("आवेदक" in item for item in result.role_specific_checks)

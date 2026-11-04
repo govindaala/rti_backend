@@ -105,14 +105,17 @@ function renderChecklist(result) {
   const addSource = (label,url) => { if(!url)return; const n=document.createElement("li"); const a=document.createElement("a"); a.href=url; a.target="_blank"; a.rel="noopener noreferrer"; a.textContent=label; n.append(a); list.append(n); };
 
   addText("आपका प्रश्न",result.question);
+  addText("प्रश्न का पहचाना गया प्रकार",result.question_intent);
+  addText("पहचाने गए कानूनी विषय",result.identified_topics?.join(", "));
   addText("मिले हुए सत्यापित दस्तावेज़",result.result_count ?? 0);
+  if(result.answer_guidance?.length){ addHeading("इस प्रश्न के लिए सुझाया गया कानूनी विश्लेषण"); result.answer_guidance.forEach(x=>addText("",x)); }
   if(result.evidence?.length){
     addHeading("संबंधित सत्यापित फैसले");
     result.evidence.forEach(doc=>{
       addText("फैसला",doc.title); addText("न्यायालय/प्राधिकरण",doc.authority);
       addText("तारीख",doc.decision_date); addText("कानूनी मुद्दा",doc.legal_issue);
       addText("निर्णय/holding",doc.holding); addText("संबंधित धाराएँ",doc.cited_sections?.join(", "));
-      addText("मिले हुए शब्द",doc.matched_terms?.join(", ")); addText("प्रासंगिकता संकेत",doc.relevance_label);
+      addText("मिले हुए शब्द",doc.matched_terms?.join(", ")); addText("प्रासंगिकता संकेत",doc.relevance_label); addText("इंटेलिजेंस स्कोर",doc.relevance_score);
       addSource("मूल आधिकारिक स्रोत खोलें",doc.canonical_url);
     });
   } else {
