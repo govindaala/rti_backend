@@ -59,3 +59,20 @@ def test_related_documents_without_verified_ratio_are_not_a_final_answer():
     assert result["answer_status"] == "evidence_found_no_verified_ratio"
     assert "निश्चित" in result["direct_answer"]
     assert result["citations"][0]["url"] == evidence[0]["canonical_url"]
+
+
+
+def test_fact_gaps_are_specific_to_privacy_and_penalty_topics():
+    privacy = build_legal_answer(
+        "personal data", "disclosure_or_exemption",
+        ["personal_information_privacy"], [], [],
+    )
+    penalty = build_legal_answer(
+        "delay penalty", "penalty_or_accountability",
+        ["delay_and_time_limit", "penalty_and_disciplinary_action"], [], [],
+    )
+    assert any("किस व्यक्ति" in item for item in privacy["fact_gaps"])
+    assert any("लोकहित" in item for item in privacy["fact_gaps"])
+    assert any("सुनवाई" in item for item in penalty["fact_gaps"])
+    assert any("PIO को" in item for item in penalty["fact_gaps"])
+    assert not any("तीसरे पक्ष" in item for item in privacy["fact_gaps"])
