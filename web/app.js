@@ -105,6 +105,36 @@ function renderChecklist(result) {
   const addSource = (label,url) => { if(!url)return; const n=document.createElement("li"); const a=document.createElement("a"); a.href=url; a.target="_blank"; a.rel="noopener noreferrer"; a.textContent=label; n.append(a); list.append(n); };
 
   addText("आपका प्रश्न",result.question);
+  if(result.answer_status){
+    addHeading("प्रारंभिक कानूनी जवाब");
+    addText("स्थिति",result.answer_status);
+    addText("",result.direct_answer);
+    if(result.legal_basis?.length){
+      addHeading("लागू सत्यापित कानूनी सिद्धांत");
+      result.legal_basis.forEach(item=>{
+        addText("मुद्दा",item.issue); addText("कानूनी सिद्धांत",item.principle);
+        addText("सीमा/दायरा",item.scope);
+        if(item.source?.url)addSource(item.source.title||"मूल निर्णय",item.source.url);
+      });
+    }
+    if(result.case_positions?.length){
+      addHeading("फैसलों में किसका कौन-सा तर्क स्वीकार/अस्वीकार हुआ");
+      result.case_positions.forEach(item=>{
+        addText("मुद्दा",item.issue);
+        addText("आवेदक के स्वीकार तर्क",item.applicant_arguments_accepted?.join(" | "));
+        addText("आवेदक के अस्वीकार तर्क",item.applicant_arguments_rejected?.join(" | "));
+        addText("PIO के स्वीकार तर्क",item.pio_arguments_accepted?.join(" | "));
+        addText("PIO के अस्वीकार तर्क",item.pio_arguments_rejected?.join(" | "));
+        addText("फैसले का परिणाम",item.outcome);
+      });
+    }
+    if(result.conditions_to_check?.length){addHeading("लागू होने की शर्तें");result.conditions_to_check.forEach(x=>addText("",x));}
+    if(result.exceptions_to_check?.length){addHeading("अपवाद");result.exceptions_to_check.forEach(x=>addText("",x));}
+    if(result.fact_gaps?.length){addHeading("आपके मामले में अभी जिन तथ्यों की जरूरत है");result.fact_gaps.forEach(x=>addText("",x));}
+    if(result.next_steps?.length){addHeading("आगे क्या करें");result.next_steps.forEach(x=>addText("",x));}
+    if(result.citations?.length){addHeading("स्रोत और मूल निर्णय");result.citations.forEach(item=>addSource(item.title||"मूल निर्णय",item.url));}
+    addText("महत्वपूर्ण सीमा",result.disclaimer);
+  }
   addText("प्रश्न का पहचाना गया प्रकार",result.question_intent);
   addText("पहचाने गए कानूनी विषय",result.identified_topics?.join(", "));
   addText("मिले हुए सत्यापित दस्तावेज़",result.result_count ?? 0);
