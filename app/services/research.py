@@ -52,7 +52,7 @@ def apply_verified_legal_knowledge(
     # दो स्वतंत्र offline retrieval passes: user के मूल शब्द और पहचाने गए कानूनी concepts.
     candidates = []
     for query in plan.search_queries:
-        candidates.extend(search_verified_documents(query, min(request.limit * 2, 30)))
+        candidates.extend(search_verified_documents(query, request.limit))
     ranked_records = merge_ranked_documents(candidates, plan, request.limit)
     evidence = []
     for record in ranked_records:
