@@ -100,6 +100,7 @@ def apply_verified_legal_knowledge(
             "विवादित तथ्य और अनुपलब्ध साक्ष्य को स्पष्ट रूप से चिह्नित करें।",
         ],
     }
+    query_terms = set(plan.key_terms)
     principle_query = " OR ".join(plan.key_terms[:20]) or request.question
     principle_records = search_verified_principles(principle_query, min(request.limit, 8))
     traced_principles = []
