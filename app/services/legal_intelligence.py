@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass
 
 TOKEN_RE = re.compile(r"[\w\u0900-\u097F]{2,}", re.UNICODE)
-SECTION_RE = re.compile(r"(?:धारा|section|sec\.?|s\.?)[\s-]*(\d+[A-Za-z]?(?:\([0-9A-Za-z]+\))*)", re.I)
+SECTION_RE = re.compile(r"(?:धारा|dhara|section|sec\\.?|s\\.?)[\\s-]*(\\d+[A-Za-z]?(?:\\([0-9A-Za-z]+\\))*)", re.I)
 STOP_WORDS = {
     "और", "तथा", "क्या", "किस", "किसी", "कैसे", "कब", "है", "हैं", "था",
     "थी", "थे", "को", "की", "का", "के", "से", "पर", "में", "लिए", "द्वारा",
