@@ -150,6 +150,11 @@ def extraction_status_for_text(text: str, content_type: str) -> tuple[bool, str]
     return False, "extracted"
 
 
+def _join_pdf_pages(page_texts: list[str]) -> str:
+    """PDF के भौतिक पृष्ठों के बीच form-feed रखें ताकि आगे pinpoint traceability बनी रहे."""
+    return "\n\f\n".join(page_texts)
+
+
 def extract_pdf_text_with_ocr(raw: bytes, page_count: int, max_pages: int = 20) -> str | None:
     """OCR के लिए सीमित पृष्ठ render करें; अनुपलब्ध/विफल engine पर सुरक्षित fallback दें."""
     if page_count < 1 or page_count > max_pages:
@@ -170,7 +175,7 @@ def extract_pdf_text_with_ocr(raw: bytes, page_count: int, max_pages: int = 20) 
                         image, lang="eng+hin", config="--psm 3", timeout=15
                     )
                 )
-        extracted = "\n".join(chunks).strip()
+        extracted = _join_pdf_pages(chunks).strip()
         return extracted or None
     except Exception:
         # OCR failure must not crash the crawler or silently mark the PDF as extracted.
@@ -291,7 +296,7 @@ def fetch_document(
         pages = len(reader.pages)
         if pages > 500:
             raise ValueError("PDF exceeds the 500-page extraction limit")
-        text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        text = _join_pdf_pages([page.extract_text() or "" for page in reader.pages])
         ocr_required, extraction_status = extraction_status_for_text(text, content_type)
         if ocr_required:
             ocr_text = extract_pdf_text_with_ocr(raw, pages)

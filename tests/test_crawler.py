@@ -13,6 +13,7 @@ from app.services.crawler import (
     extraction_status_for_text,
     extract_pdf_text_with_ocr,
     extract_html_text,
+    _join_pdf_pages,
 )
 
 
@@ -136,3 +137,9 @@ def test_ocr_runtime_failure_returns_none_for_manual_or_later_retry(monkeypatch)
     monkeypatch.setitem(sys.modules, "PIL", SimpleNamespace(Image=SimpleNamespace()))
 
     assert extract_pdf_text_with_ocr(b"pdf-bytes", page_count=1) is None
+
+
+
+def test_pdf_page_join_preserves_physical_page_boundaries() -> None:
+    joined = _join_pdf_pages(["First page text", "Second page text"])
+    assert joined == "First page text\n\f\nSecond page text"

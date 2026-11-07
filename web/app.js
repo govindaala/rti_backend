@@ -30,7 +30,7 @@ const translations = {
     operativeCandidates:"अंतिम आदेश का संभावित अंश",
     issueCandidates:"विवादित मुद्दा",
     sectionCandidates:"धारा-संदर्भ",
-    paragraphLabel:"स्रोत पैरा",
+    paragraphLabel:"स्रोत पैरा",pageLabel:"PDF पृष्ठ",
     reviewNote:"समीक्षा स्थिति"
   },
   en: {
@@ -60,7 +60,7 @@ const translations = {
     operativeCandidates:"Operative-order passage candidate",
     issueCandidates:"Issue candidate",
     sectionCandidates:"Statutory-section reference",
-    paragraphLabel:"Source paragraph",
+    paragraphLabel:"Source paragraph",pageLabel:"PDF page",
     reviewNote:"Review status"
   },
   hinglish: {
@@ -90,7 +90,7 @@ const translations = {
     operativeCandidates:"Final order ka possible passage",
     issueCandidates:"Issue candidate",
     sectionCandidates:"Section reference",
-    paragraphLabel:"Source para",
+    paragraphLabel:"Source para",pageLabel:"PDF page",
     reviewNote:"Review status"
   }
 };
@@ -168,6 +168,7 @@ function renderChecklist(result) {
           (item[key] || []).forEach(candidate => {
             addText(label, candidate.excerpt);
             addText(words.paragraphLabel, candidate.paragraph_reference);
+            addText(words.pageLabel, candidate.page_reference);
             if (candidate.source_url) addSource(words.sourceParagraph, candidate.source_url);
             addText(words.reviewNote, candidate.review_status);
           });

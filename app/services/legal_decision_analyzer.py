@@ -67,6 +67,16 @@ def _sentences(text: str) -> list[str]:
     return [part.strip() for part in SENTENCE_SPLIT.split(text) if len(part.strip()) >= 35]
 
 
+def _sentences_with_pages(text: str) -> list[tuple[str, int | None]]:
+    """PDF form-feed boundaries से physical page index जोड़ें; बिना marker page न गढ़ें."""
+    if "\f" not in text:
+        return [(sentence, None) for sentence in _sentences(text)]
+    located: list[tuple[str, int | None]] = []
+    for page_number, page_text in enumerate(text.split("\f"), start=1):
+        located.extend((sentence, page_number) for sentence in _sentences(page_text))
+    return located
+
+
 def _explicit_rti_sections(text: str) -> list[str]:
     """Only keep section citations with nearby explicit RTI Act context."""
     found: list[str] = []
@@ -87,8 +97,9 @@ def _paragraph_reference(sentence: str) -> str | None:
 
 
 def _candidate(
-    kind: str, label: str, sentence: str, source_url: str
-) -> dict[str, str]:
+    kind: str, label: str, sentence: str, source_url: str,
+    page_number: int | None = None,
+) -> dict[str, Any]:
     item = {
         "kind": kind,
         "label": label,
@@ -99,6 +110,8 @@ def _candidate(
     paragraph = _paragraph_reference(sentence)
     if paragraph:
         item["paragraph_reference"] = paragraph
+    if page_number is not None:
+        item["page_reference"] = f"PDF पृष्ठ {page_number}"
     return item
 
 
@@ -113,49 +126,53 @@ def analyze_decision_text(text: str | None, source_url: str) -> dict[str, Any]:
             "cited_sections": [], "key_paragraphs": [], "analyzed": False,
         }
 
-    sentences = _sentences(content)
-    issue = next(
-        (sentence for sentence in sentences if any(hint in sentence.lower() for hint in ISSUE_HINTS)),
+    located_sentences = _sentences_with_pages(content)
+    sentences = [sentence for sentence, _page in located_sentences]
+    issue_entry = next(
+        ((sentence, page) for sentence, page in located_sentences
+         if any(hint in sentence.lower() for hint in ISSUE_HINTS)),
         None,
     )
-    holding_sentences = [
-        sentence for sentence in sentences
+    issue = issue_entry[0] if issue_entry else None
+    holding_entries = [
+        (sentence, page) for sentence, page in located_sentences
         if any(hint in sentence.lower() for hint in HOLDING_HINTS)
     ]
-    holding = holding_sentences[-1] if holding_sentences else None
+    holding = holding_entries[-1][0] if holding_entries else None
     sections = _explicit_rti_sections(content)
 
     # Each category is a searchable review candidate, never a verified legal conclusion.
     candidates: list[dict[str, str]] = []
-    if issue:
+    if issue_entry:
         candidates.append(_candidate(
-            "issue_candidate", "विवादित मुद्दे का संभावित स्रोत-अंश", issue, source_url
+            "issue_candidate", "विवादित मुद्दे का संभावित स्रोत-अंश",
+            issue_entry[0], source_url, issue_entry[1],
         ))
 
-    for sentence in sentences:
+    for sentence, page_number in located_sentences:
         lower = sentence.lower()
         if any(hint in lower for hint in APPLICANT_ARGUMENT_HINTS):
             candidates.append(_candidate(
                 "applicant_argument_candidate", "आवेदक/अपीलकर्ता के तर्क का संभावित अंश",
-                sentence, source_url,
+                sentence, source_url, page_number,
             ))
         if any(hint in lower for hint in PIO_ARGUMENT_HINTS):
             candidates.append(_candidate(
                 "pio_argument_candidate", "PIO/प्रतिवादी के तर्क का संभावित अंश",
-                sentence, source_url,
+                sentence, source_url, page_number,
             ))
         if any(hint in lower for hint in FINDING_HINTS):
             candidates.append(_candidate(
                 "finding_candidate", "आयोग/न्यायालय की टिप्पणी का संभावित अंश",
-                sentence, source_url,
+                sentence, source_url, page_number,
             ))
         if any(hint in lower for hint in OUTCOME_HINTS):
             candidates.append(_candidate(
                 "outcome_candidate", "परिणाम-संकेत; operative order से मिलान आवश्यक",
-                sentence, source_url,
+                sentence, source_url, page_number,
             ))
 
-    for sentence in holding_sentences[-3:]:
+    for sentence, page_number in holding_entries[-3:]:
         if not any(
             item["excerpt"] == _clean_excerpt(sentence, 220)
             and item["kind"] == "operative_order_candidate"
@@ -164,7 +181,7 @@ def analyze_decision_text(text: str | None, source_url: str) -> dict[str, Any]:
             candidates.append(_candidate(
                 "operative_order_candidate",
                 "अंतिम आदेश/निर्देश का संभावित अंश; मानव पुष्टि आवश्यक",
-                sentence, source_url,
+                sentence, source_url, page_number,
             ))
 
     if sections:

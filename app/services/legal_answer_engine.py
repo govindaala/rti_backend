@@ -160,6 +160,7 @@ def _candidate_case_positions(evidence: list[dict[str, Any]]) -> list[dict[str, 
             grouped[target].append({
                 "excerpt": item.get("excerpt"),
                 "paragraph_reference": item.get("paragraph_reference"),
+                "page_reference": item.get("page_reference"),
                 "label": item.get("label"),
                 "source_url": item.get("source_url") or document.get("canonical_url"),
                 "review_status": "human_review_required",

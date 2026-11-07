@@ -60,3 +60,37 @@ def test_hindi_party_arguments_are_not_silently_promoted_to_holdings():
     assert "pio_argument_candidate" in kinds
     assert "finding_candidate" in kinds
     assert result["analysis_status"] == "human_review_required"
+
+
+
+def test_pdf_page_references_are_attached_only_when_page_boundaries_exist():
+    text = (
+        "Background facts are recorded in the case.\f"
+        "Para 7: The appellant submitted that the requested record was not supplied.\f"
+        "The Commission observed that the search record was incomplete."
+    )
+    result = analyze_decision_text(text, "https://cic.gov.in/orders/paged.pdf")
+    applicant = next(
+        item for item in result["key_paragraphs"]
+        if item["kind"] == "applicant_argument_candidate"
+    )
+    finding = next(
+        item for item in result["key_paragraphs"]
+        if item["kind"] == "finding_candidate"
+    )
+    assert applicant["paragraph_reference"] == "पैरा 7"
+    assert applicant["page_reference"] == "PDF पृष्ठ 2"
+    assert finding["page_reference"] == "PDF पृष्ठ 3"
+    assert applicant["source_url"] == "https://cic.gov.in/orders/paged.pdf"
+
+
+def test_non_pdf_text_does_not_receive_invented_page_reference():
+    result = analyze_decision_text(
+        "The appellant submitted that the requested record was not supplied.",
+        "https://cic.gov.in/orders/html",
+    )
+    applicant = next(
+        item for item in result["key_paragraphs"]
+        if item["kind"] == "applicant_argument_candidate"
+    )
+    assert "page_reference" not in applicant
