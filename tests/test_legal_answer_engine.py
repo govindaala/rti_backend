@@ -109,3 +109,29 @@ def test_extracted_party_positions_remain_review_candidates_not_verified_ratio()
     assert position["applicant_argument_candidates"][0]["paragraph_reference"] == "पैरा 5"
     assert position["pio_argument_candidates"][0]["paragraph_reference"] == "पैरा 6"
     assert "मानव समीक्षा" in position["note"]
+
+
+
+def test_legacy_crawler_key_paragraphs_remain_usable_as_review_candidates():
+    evidence = [{
+        "document_id": "d5",
+        "title": "Older CIC order",
+        "canonical_url": "https://cic.gov.in/order/5",
+        "key_paragraphs": [
+            {
+                "label": "मुद्दे की पहचान हेतु छोटा स्रोत-अंश",
+                "excerpt": "Whether the requested record should be disclosed.",
+                "source_url": "https://cic.gov.in/order/5",
+            },
+            {
+                "label": "आदेश-संकेत की जाँच हेतु छोटा स्रोत-अंश",
+                "excerpt": "Accordingly, the appeal is dismissed.",
+                "source_url": "https://cic.gov.in/order/5",
+            },
+        ],
+    }]
+    result = build_legal_answer("record disclosure", "general", [], evidence, [])
+    assert len(result["candidate_case_positions"]) == 1
+    position = result["candidate_case_positions"][0]
+    assert position["issue_candidates"][0]["excerpt"].startswith("Whether")
+    assert position["operative_order_candidates"][0]["review_status"] == "human_review_required"

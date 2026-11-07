@@ -130,15 +130,31 @@ def _candidate_case_positions(evidence: list[dict[str, Any]]) -> list[dict[str, 
         "outcome_candidate": "outcome_candidates",
         "operative_order_candidate": "operative_order_candidates",
         "issue_candidate": "issue_candidates",
+        "section_reference_candidate": "section_reference_candidates",
     }
     results = []
     for document in evidence:
         candidates = document.get("decision_candidates") or document.get("key_paragraphs") or []
         grouped: dict[str, list[dict[str, Any]]] = {name: [] for name in labels.values()}
         for item in candidates:
-            if not isinstance(item, dict) or item.get("review_status") != "human_review_required":
+            if not isinstance(item, dict):
                 continue
-            target = labels.get(item.get("kind"))
+            kind = item.get("kind")
+            review_status = item.get("review_status")
+            if not kind:
+                # Older crawls stored only a label/excerpt in key_paragraphs.
+                legacy_label = str(item.get("label") or "")
+                if "मुद्दे" in legacy_label:
+                    kind = "issue_candidate"
+                elif "आदेश" in legacy_label:
+                    kind = "operative_order_candidate"
+                elif "धारा" in legacy_label:
+                    kind = "section_reference_candidate"
+                if kind:
+                    review_status = "human_review_required"
+            if review_status != "human_review_required":
+                continue
+            target = labels.get(kind)
             if not target:
                 continue
             grouped[target].append({

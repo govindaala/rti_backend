@@ -23,7 +23,7 @@ class FakeCursor:
             "a" * 64,
             "संक्षिप्त ज्ञान-सार: धारा 8(1)(j); मानव समीक्षा आवश्यक।",
             "व्यक्तिगत सूचना से जुड़ा मुद्दा", "अपील खारिज होने का संकेत",
-            ["धारा 8(1)(j)"],
+            ["धारा 8(1)(j)"], [],
         )]
 
 
@@ -54,6 +54,7 @@ def test_search_uses_ranked_full_text_and_returns_structured_knowledge(monkeypat
     assert results[0]["content_sha256"] == "a" * 64
     assert results[0]["learned_summary"].startswith("संक्षिप्त ज्ञान-सार")
     assert results[0]["cited_sections"] == ["धारा 8(1)(j)"]
+    assert results[0]["decision_candidates"] == []
     assert results[0]["verification_status"] == "verified"
     assert "websearch_to_tsquery" in cursor.sql
     assert "d.status = 'verified'" in cursor.sql
