@@ -24,6 +24,7 @@ class LegalEvidence(BaseModel):
     legal_issue: str | None = None
     holding: str | None = None
     cited_sections: list[str] = Field(default_factory=list)
+    decision_candidates: list[dict] = Field(default_factory=list)
     content_sha256: str | None = None
     verification_status: str = "verified"
 
@@ -54,6 +55,7 @@ class AppliedLegalEvidence(BaseModel):
     legal_issue: str | None = None
     holding: str | None = None
     cited_sections: list[str] = Field(default_factory=list)
+    decision_candidates: list[dict] = Field(default_factory=list)
     content_sha256: str | None = None
     matched_terms: list[str] = Field(default_factory=list)
     relevance_label: str
@@ -99,6 +101,7 @@ class LegalApplicationResponse(BaseModel):
     direct_answer: str
     legal_basis: list[dict] = Field(default_factory=list)
     case_positions: list[dict] = Field(default_factory=list)
+    candidate_case_positions: list[dict] = Field(default_factory=list)
     conditions_to_check: list[str] = Field(default_factory=list)
     exceptions_to_check: list[str] = Field(default_factory=list)
     fact_gaps: list[str] = Field(default_factory=list)

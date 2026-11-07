@@ -76,3 +76,36 @@ def test_fact_gaps_are_specific_to_privacy_and_penalty_topics():
     assert any("सुनवाई" in item for item in penalty["fact_gaps"])
     assert any("PIO को" in item for item in penalty["fact_gaps"])
     assert not any("तीसरे पक्ष" in item for item in privacy["fact_gaps"])
+
+
+
+def test_extracted_party_positions_remain_review_candidates_not_verified_ratio():
+    evidence = [{
+        "document_id": "d4",
+        "title": "CIC order",
+        "canonical_url": "https://cic.gov.in/order/4",
+        "authority": "CIC",
+        "decision_candidates": [
+            {
+                "kind": "applicant_argument_candidate",
+                "excerpt": "The appellant submitted that the reply was delayed.",
+                "paragraph_reference": "पैरा 5",
+                "source_url": "https://cic.gov.in/order/4",
+                "review_status": "human_review_required",
+            },
+            {
+                "kind": "pio_argument_candidate",
+                "excerpt": "The CPIO submitted that the delay was explained.",
+                "paragraph_reference": "पैरा 6",
+                "source_url": "https://cic.gov.in/order/4",
+                "review_status": "human_review_required",
+            },
+        ],
+    }]
+    result = build_legal_answer("PIO delay", "delay_or_deadline", [], evidence, [])
+    assert result["case_positions"] == []
+    assert len(result["candidate_case_positions"]) == 1
+    position = result["candidate_case_positions"][0]
+    assert position["applicant_argument_candidates"][0]["paragraph_reference"] == "पैरा 5"
+    assert position["pio_argument_candidates"][0]["paragraph_reference"] == "पैरा 6"
+    assert "मानव समीक्षा" in position["note"]

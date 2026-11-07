@@ -77,6 +77,7 @@ def apply_verified_legal_knowledge(
             legal_issue=raw.get("legal_issue"),
             holding=raw.get("holding"),
             cited_sections=raw.get("cited_sections") or [],
+            decision_candidates=raw.get("decision_candidates") or [],
             content_sha256=raw.get("content_sha256"),
             matched_terms=matched,
             relevance_label=label,

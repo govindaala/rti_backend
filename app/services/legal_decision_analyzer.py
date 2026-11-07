@@ -1,4 +1,3 @@
-# Repository path: rti_backend/app/services/legal_decision_analyzer.py
 """Conservative structured extraction for RTI legal research; human review remains mandatory."""
 from __future__ import annotations
 
@@ -21,9 +20,40 @@ HOLDING_HINTS = (
     "आदेश दिया जाता", "अपील खारिज", "अपील स्वीकार", "निर्देशित किया जाता",
     "निर्णय लिया", "तदनुसार",
 )
+APPLICANT_ARGUMENT_HINTS = (
+    "appellant submitted", "applicant submitted", "appellant contended",
+    "applicant contended", "appellant argued", "applicant argued",
+    "on behalf of the appellant", "on behalf of applicant",
+    "अपीलकर्ता ने तर्क", "आवेदक ने तर्क", "अपीलकर्ता की ओर से",
+    "आवेदक की ओर से", "अपीलकर्ता ने कहा", "आवेदक ने कहा",
+)
+PIO_ARGUMENT_HINTS = (
+    "cpio submitted", "pio submitted", "respondent submitted",
+    "respondent contended", "respondent argued", "public information officer submitted",
+    "on behalf of the respondent", "लोक सूचना अधिकारी ने कहा",
+    "जन सूचना अधिकारी ने कहा", "प्रतिवादी ने तर्क", "लोक सूचना अधिकारी की ओर से",
+)
+FINDING_HINTS = (
+    "the commission observes", "commission observed", "the commission finds",
+    "we find that", "we are of the view", "it is observed that",
+    "it is clear from the record", "the record reveals", "we hold that",
+    "आयोग ने पाया", "आयोग का मत", "हम पाते हैं", "यह पाया जाता है",
+    "अभिलेख से स्पष्ट", "आयोग का निष्कर्ष",
+)
+OUTCOME_HINTS = (
+    "appeal is allowed", "appeal stands allowed", "appeal is dismissed",
+    "appeal stands dismissed", "appeal is partly allowed", "partly allowed",
+    "matter is remanded", "case is remanded", "complaint is disposed",
+    "appeal is disposed", "appeal is withdrawn", "आंशिक रूप से स्वीकार",
+    "अपील स्वीकार", "अपील खारिज", "मामला वापस भेजा जाता",
+    "शिकायत निराकृत", "अपील निराकृत",
+)
 SECTION_PATTERN = re.compile(
     r"(?i)\b(?:section|sec\.?|s\.?|धारा)\s*"
     r"(\d{1,2}(?:\s*\(\s*[a-zA-Z0-9]+\s*\))*)"
+)
+PARAGRAPH_PATTERN = re.compile(
+    r"(?i)\b(?:para(?:graph)?|पैरा)\s*[.:#-]?\s*(\d+[a-z]?)\b"
 )
 SENTENCE_SPLIT = re.compile(r"(?<=[.!?।])\s+|\n+")
 
@@ -50,13 +80,35 @@ def _explicit_rti_sections(text: str) -> list[str]:
     return found[:20]
 
 
+def _paragraph_reference(sentence: str) -> str | None:
+    """Return only an explicit paragraph marker; never infer a page/paragraph number."""
+    match = PARAGRAPH_PATTERN.search(sentence)
+    return f"पैरा {match.group(1)}" if match else None
+
+
+def _candidate(
+    kind: str, label: str, sentence: str, source_url: str
+) -> dict[str, str]:
+    item = {
+        "kind": kind,
+        "label": label,
+        "excerpt": _clean_excerpt(sentence, 220),
+        "source_url": source_url,
+        "review_status": "human_review_required",
+    }
+    paragraph = _paragraph_reference(sentence)
+    if paragraph:
+        item["paragraph_reference"] = paragraph
+    return item
+
+
 def analyze_decision_text(text: str | None, source_url: str) -> dict[str, Any]:
-    """Build a compact review record; do not claim this is AI training or a verified holding."""
+    """Extract review candidates, not legal holdings or verified precedent."""
     content = (text or "").strip()
     if not content:
         return {
             "analysis_status": "text_unavailable",
-            "analysis_method": "rule_based_structured_v2",
+            "analysis_method": "rule_based_structured_v3",
             "learned_summary": None, "legal_issue": None, "holding": None,
             "cited_sections": [], "key_paragraphs": [], "analyzed": False,
         }
@@ -73,44 +125,96 @@ def analyze_decision_text(text: str | None, source_url: str) -> dict[str, Any]:
     holding = holding_sentences[-1] if holding_sentences else None
     sections = _explicit_rti_sections(content)
 
-    # Short, attributable fragments are retained separately for reviewer verification.
-    key_paragraphs: list[dict[str, str]] = []
+    # Each category is a searchable review candidate, never a verified legal conclusion.
+    candidates: list[dict[str, str]] = []
     if issue:
-        key_paragraphs.append({
-            "label": "मुद्दे की पहचान हेतु छोटा स्रोत-अंश",
-            "excerpt": _clean_excerpt(issue, 220), "source_url": source_url,
-        })
-    for sentence in holding_sentences[-2:]:
-        excerpt = _clean_excerpt(sentence, 220)
-        if not any(item["excerpt"] == excerpt for item in key_paragraphs):
-            key_paragraphs.append({
-                "label": "आदेश-संकेत की जाँच हेतु छोटा स्रोत-अंश",
-                "excerpt": excerpt, "source_url": source_url,
-            })
+        candidates.append(_candidate(
+            "issue_candidate", "विवादित मुद्दे का संभावित स्रोत-अंश", issue, source_url
+        ))
+
+    for sentence in sentences:
+        lower = sentence.lower()
+        if any(hint in lower for hint in APPLICANT_ARGUMENT_HINTS):
+            candidates.append(_candidate(
+                "applicant_argument_candidate", "आवेदक/अपीलकर्ता के तर्क का संभावित अंश",
+                sentence, source_url,
+            ))
+        if any(hint in lower for hint in PIO_ARGUMENT_HINTS):
+            candidates.append(_candidate(
+                "pio_argument_candidate", "PIO/प्रतिवादी के तर्क का संभावित अंश",
+                sentence, source_url,
+            ))
+        if any(hint in lower for hint in FINDING_HINTS):
+            candidates.append(_candidate(
+                "finding_candidate", "आयोग/न्यायालय की टिप्पणी का संभावित अंश",
+                sentence, source_url,
+            ))
+        if any(hint in lower for hint in OUTCOME_HINTS):
+            candidates.append(_candidate(
+                "outcome_candidate", "परिणाम-संकेत; operative order से मिलान आवश्यक",
+                sentence, source_url,
+            ))
+
+    for sentence in holding_sentences[-3:]:
+        if not any(
+            item["excerpt"] == _clean_excerpt(sentence, 220)
+            and item["kind"] == "operative_order_candidate"
+            for item in candidates
+        ):
+            candidates.append(_candidate(
+                "operative_order_candidate",
+                "अंतिम आदेश/निर्देश का संभावित अंश; मानव पुष्टि आवश्यक",
+                sentence, source_url,
+            ))
+
     if sections:
-        key_paragraphs.append({
-            "label": "RTI Act धारा-संदर्भ",
+        candidates.append({
+            "kind": "section_reference_candidate",
+            "label": "RTI Act धारा-संदर्भ; मूल पाठ से सत्यापन आवश्यक",
             "excerpt": "पाठ में RTI Act के संदर्भ में पहचानी गई धाराएँ: " + ", ".join(sections),
             "source_url": source_url,
+            "review_status": "human_review_required",
         })
 
-    # This is a new metadata-style synopsis, not a reproduction of source sentences.
+    # Preserve first occurrence while limiting JSONB growth for large decisions.
+    unique: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for item in candidates:
+        key = (item["kind"], item["excerpt"])
+        if key not in seen:
+            seen.add(key)
+            unique.append(item)
+    unique = unique[:16]
+
+    applicant_count = sum(x["kind"] == "applicant_argument_candidate" for x in unique)
+    pio_count = sum(x["kind"] == "pio_argument_candidate" for x in unique)
+    finding_count = sum(x["kind"] == "finding_candidate" for x in unique)
+    outcome_count = sum(x["kind"] == "outcome_candidate" for x in unique)
     parts = ["प्रारंभिक संरचित रिकॉर्ड; मानव समीक्षा आवश्यक।"]
     parts.append(
         "RTI Act के स्पष्ट संदर्भ: " + ", ".join(sections) + "."
         if sections else "RTI Act की किसी धारा का स्पष्ट संदर्भ नियमों से पुष्ट नहीं हुआ।"
     )
     parts.append("मुद्दा-संकेत: " + ("मिला" if issue else "नहीं मिला") + ".")
-    parts.append("आदेश/निष्कर्ष-संकेत: " + ("मिला" if holding else "नहीं मिला") + ".")
-    parts.append("यह सत्यापित कानूनी सिद्धांत, पक्ष की जीत, या वर्तमान वैधता का निष्कर्ष नहीं है।")
+    parts.append(
+        f"पक्ष-तर्क संकेत: आवेदक/अपीलकर्ता {applicant_count}, PIO/प्रतिवादी {pio_count}."
+    )
+    parts.append(
+        f"न्यायिक टिप्पणी संकेत: {finding_count}; परिणाम संकेत: {outcome_count}."
+    )
+    parts.append(
+        "ये केवल खोज/समीक्षा उम्मीदवार हैं; ratio decidendi, पक्ष की जीत, "
+        "operative order या वर्तमान वैधता का सत्यापित निष्कर्ष नहीं हैं।"
+    )
     parts.append("मूल स्रोत: " + source_url)
 
     return {
         "analysis_status": "human_review_required",
-        "analysis_method": "rule_based_structured_v2",
+        "analysis_method": "rule_based_structured_v3",
         "learned_summary": " ".join(parts)[:1800],
         "legal_issue": _clean_excerpt(issue, 280) if issue else None,
         "holding": _clean_excerpt(holding, 280) if holding else None,
-        "cited_sections": sections, "key_paragraphs": key_paragraphs[:5],
+        "cited_sections": sections,
+        "key_paragraphs": unique,
         "analyzed": True,
     }

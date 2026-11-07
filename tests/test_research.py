@@ -61,6 +61,31 @@ def test_legal_application_uses_verified_evidence_and_returns_traceable_sources(
             "holding": "धारा 8(1)(j) के तहत परीक्षण आवश्यक है",
             "cited_sections": ["धारा 8(1)(j)"],
             "content_sha256": "b" * 64,
+            "decision_candidates": [
+                {
+                    "kind": "applicant_argument_candidate",
+                    "label": "applicant argument candidate",
+                    "excerpt": "The appellant submitted that the record was not supplied.",
+                    "source_url": "https://cic.gov.in/orders/verified-1",
+                    "paragraph_reference": "पैरा 7",
+                    "review_status": "human_review_required",
+                },
+                {
+                    "kind": "pio_argument_candidate",
+                    "label": "PIO argument candidate",
+                    "excerpt": "The CPIO submitted that the record was not available.",
+                    "source_url": "https://cic.gov.in/orders/verified-1",
+                    "paragraph_reference": "पैरा 8",
+                    "review_status": "human_review_required",
+                },
+                {
+                    "kind": "outcome_candidate",
+                    "label": "outcome candidate",
+                    "excerpt": "Accordingly, the appeal is dismissed.",
+                    "source_url": "https://cic.gov.in/orders/verified-1",
+                    "review_status": "human_review_required",
+                },
+            ],
             "verification_status": "verified",
         }]
 
@@ -81,6 +106,11 @@ def test_legal_application_uses_verified_evidence_and_returns_traceable_sources(
     assert body["result_count"] == 1
     assert body["evidence"][0]["document_id"] == "verified-1"
     assert body["evidence"][0]["canonical_url"] == "https://cic.gov.in/orders/verified-1"
+    assert len(body["evidence"][0]["decision_candidates"]) == 3
+    assert body["candidate_case_positions"][0]["source_url"] == "https://cic.gov.in/orders/verified-1"
+    assert body["candidate_case_positions"][0]["applicant_argument_candidates"][0]["paragraph_reference"] == "पैरा 7"
+    assert body["candidate_case_positions"][0]["pio_argument_candidates"][0]["paragraph_reference"] == "पैरा 8"
+    assert body["candidate_case_positions"][0]["outcome_candidates"]
     assert "व्यक्तिगत" in body["evidence"][0]["matched_terms"]
     assert any("केवल मानव-सत्यापित" in item for item in body["limitations"])
     assert any("आवेदक" in item for item in body["role_specific_checks"])

@@ -26,6 +26,7 @@ def build_legal_answer(
     positions: list[dict[str, Any]] = []
     conditions: list[str] = []
     exceptions: list[str] = []
+    candidate_case_positions = _candidate_case_positions(evidence)
 
     for item in current:
         citation = {
@@ -105,6 +106,7 @@ def build_legal_answer(
         "direct_answer": direct_answer,
         "legal_basis": legal_basis,
         "case_positions": positions,
+        "candidate_case_positions": candidate_case_positions,
         "conditions_to_check": _dedupe_strings(conditions),
         "exceptions_to_check": _dedupe_strings(exceptions),
         "fact_gaps": fact_gaps,
@@ -116,6 +118,51 @@ def build_legal_answer(
             "वर्तमान अधिनियम, नियम, बाद के निर्णय, अपील/स्थगन और मूल अनुच्छेद जाँचें।"
         ),
     }
+
+
+
+def _candidate_case_positions(evidence: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Expose short extracted party/finding/order passages as review candidates only."""
+    labels = {
+        "applicant_argument_candidate": "applicant_argument_candidates",
+        "pio_argument_candidate": "pio_argument_candidates",
+        "finding_candidate": "court_or_commission_finding_candidates",
+        "outcome_candidate": "outcome_candidates",
+        "operative_order_candidate": "operative_order_candidates",
+        "issue_candidate": "issue_candidates",
+    }
+    results = []
+    for document in evidence:
+        candidates = document.get("decision_candidates") or document.get("key_paragraphs") or []
+        grouped: dict[str, list[dict[str, Any]]] = {name: [] for name in labels.values()}
+        for item in candidates:
+            if not isinstance(item, dict) or item.get("review_status") != "human_review_required":
+                continue
+            target = labels.get(item.get("kind"))
+            if not target:
+                continue
+            grouped[target].append({
+                "excerpt": item.get("excerpt"),
+                "paragraph_reference": item.get("paragraph_reference"),
+                "label": item.get("label"),
+                "source_url": item.get("source_url") or document.get("canonical_url"),
+                "review_status": "human_review_required",
+            })
+        if not any(grouped.values()):
+            continue
+        results.append({
+            "document_id": document.get("document_id"),
+            "source_title": document.get("title") or document.get("canonical_url"),
+            "source_url": document.get("canonical_url"),
+            "authority": document.get("authority"),
+            "decision_date": document.get("decision_date"),
+            **grouped,
+            "note": (
+                "ये rule-based निकाले गए छोटे स्रोत-अंश हैं। पक्ष की स्थिति, "
+                "अंतिम आदेश और ratio/obiter का निर्धारण मूल निर्णय पढ़कर मानव समीक्षा से करें।"
+            ),
+        })
+    return results
 
 
 def _question_specific_fact_gaps(intent: str, topics: list[str]) -> list[str]:

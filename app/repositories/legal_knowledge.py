@@ -29,6 +29,7 @@ def search_verified_documents(query: str, limit: int = 10) -> list[dict[str, Any
                             COALESCE(array_to_string(d.cited_sections, ', '), ''), 1600) AS excerpt,
                        d.learned_summary, d.legal_issue, d.holding,
                        COALESCE(d.cited_sections, ARRAY[]::text[]) AS cited_sections,
+                       d.key_paragraphs AS decision_candidates,
                        d.content_sha256,
                        ts_rank(
                            to_tsvector('simple',
@@ -67,7 +68,7 @@ def search_verified_documents(query: str, limit: int = 10) -> list[dict[str, Any
             )
             SELECT id, title, canonical_url, court_or_authority,
                    decision_date, document_type, excerpt, content_sha256,
-                   learned_summary, legal_issue, holding, cited_sections
+                   learned_summary, legal_issue, holding, cited_sections, decision_candidates
             FROM candidates
             ORDER BY relevance DESC, substring_match DESC,
                      decision_date DESC NULLS LAST, canonical_url ASC
@@ -86,6 +87,7 @@ def search_verified_documents(query: str, limit: int = 10) -> list[dict[str, Any
             "excerpt": row[6] or "", "content_sha256": row[7],
             "learned_summary": row[8], "legal_issue": row[9],
             "holding": row[10], "cited_sections": row[11] or [],
+            "decision_candidates": row[12] or [],
             "verification_status": "verified",
         }
         for row in rows
