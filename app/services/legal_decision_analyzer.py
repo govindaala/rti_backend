@@ -127,7 +127,6 @@ def analyze_decision_text(text: str | None, source_url: str) -> dict[str, Any]:
         }
 
     located_sentences = _sentences_with_pages(content)
-    sentences = [sentence for sentence, _page in located_sentences]
     issue_entry = next(
         ((sentence, page) for sentence, page in located_sentences
          if any(hint in sentence.lower() for hint in ISSUE_HINTS)),
