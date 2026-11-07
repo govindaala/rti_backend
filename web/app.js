@@ -19,8 +19,19 @@ const translations = {
     step2Title:"मुद्दा-वार जाँच",step2Text:"हर कानूनी प्रश्न और दोनों पक्षों के तर्क अलग-अलग।",
     step3Title:"संदर्भ सहित उत्तर",step3Text:"धारा, पैरा और स्रोत की स्थिति स्पष्ट करके।",
     disclaimer:"यह सूचना-सहायक मंच है, वकील की सेवाओं का विकल्प नहीं।",
+    decisionTitle:"निर्णय",authorityLabel:"न्यायालय/आयोग",sourceParagraph:"स्रोत निर्णय खोलें",
     pioDialogTitle:"PIO सदस्यता",pioDialogText:"PIO सहायता सदस्यता-आधारित होगी। भुगतान और खाता सत्यापन अभी सक्रिय नहीं हैं।",
-    understood:"समझ गया"
+    understood:"समझ गया",
+    candidatePositionsTitle:"निर्णयों से निकले संभावित तर्क और आदेश (मानव समीक्षा आवश्यक)",
+    applicantCandidates:"आवेदक/अपीलकर्ता का संभावित तर्क",
+    pioCandidates:"PIO/प्रतिवादी का संभावित तर्क",
+    findingCandidates:"आयोग/न्यायालय की संभावित टिप्पणी",
+    outcomeCandidates:"परिणाम का संभावित संकेत",
+    operativeCandidates:"अंतिम आदेश का संभावित अंश",
+    issueCandidates:"विवादित मुद्दा",
+    sectionCandidates:"धारा-संदर्भ",
+    paragraphLabel:"स्रोत पैरा",
+    reviewNote:"समीक्षा स्थिति"
   },
   en: {
     how:"How it works",language:"Language",eyebrow:"Right to Information • Law-based assistance",
@@ -38,8 +49,19 @@ const translations = {
     step2Title:"Issue-wise review",step2Text:"Assess each legal issue and both parties' arguments separately.",
     step3Title:"Cited response",step3Text:"Show the section, paragraph and source status.",
     disclaimer:"An information assistance platform, not a substitute for a lawyer.",
+    decisionTitle:"Decision",authorityLabel:"Court/Commission",sourceParagraph:"Open source decision",
     pioDialogTitle:"PIO subscription",pioDialogText:"PIO assistance will require a subscription. Payments and account verification are not active yet.",
-    understood:"Understood"
+    understood:"Understood",
+    candidatePositionsTitle:"Potential arguments and orders extracted from decisions (human review required)",
+    applicantCandidates:"Applicant/appellant argument candidate",
+    pioCandidates:"PIO/respondent argument candidate",
+    findingCandidates:"Court/Commission finding candidate",
+    outcomeCandidates:"Outcome signal candidate",
+    operativeCandidates:"Operative-order passage candidate",
+    issueCandidates:"Issue candidate",
+    sectionCandidates:"Statutory-section reference",
+    paragraphLabel:"Source paragraph",
+    reviewNote:"Review status"
   },
   hinglish: {
     how:"Kaise kaam karta hai",language:"Language",eyebrow:"Right to Information • Law-based help",
@@ -57,8 +79,19 @@ const translations = {
     step2Title:"Issue-wise check",step2Text:"Har legal issue aur dono parties ke arguments alag check honge.",
     step3Title:"References ke saath answer",step3Text:"Section, paragraph aur source status clear hoga.",
     disclaimer:"Information assistance platform; lawyer ki service ka replacement nahi.",
+    decisionTitle:"Decision",authorityLabel:"Court/Commission",sourceParagraph:"Source decision kholein",
     pioDialogTitle:"PIO subscription",pioDialogText:"PIO help subscription-based hogi. Payment aur account verification abhi active nahi.",
-    understood:"Samajh gaya"
+    understood:"Samajh gaya",
+    candidatePositionsTitle:"Decisions se nikle possible arguments aur orders (human review zaroori)",
+    applicantCandidates:"Applicant/appellant ka possible argument",
+    pioCandidates:"PIO/respondent ka possible argument",
+    findingCandidates:"Commission/court ki possible observation",
+    outcomeCandidates:"Outcome ka possible signal",
+    operativeCandidates:"Final order ka possible passage",
+    issueCandidates:"Issue candidate",
+    sectionCandidates:"Section reference",
+    paragraphLabel:"Source para",
+    reviewNote:"Review status"
   }
 };
 
@@ -115,6 +148,31 @@ function renderChecklist(result) {
         addText("मुद्दा",item.issue); addText("कानूनी सिद्धांत",item.principle);
         addText("सीमा/दायरा",item.scope);
         if(item.source?.url)addSource(item.source.title||"मूल निर्णय",item.source.url);
+      });
+    }
+    if(result.candidate_case_positions?.length){
+      addHeading(words.candidatePositionsTitle);
+      const candidateGroups = [
+        ["applicant_argument_candidates", words.applicantCandidates],
+        ["pio_argument_candidates", words.pioCandidates],
+        ["court_or_commission_finding_candidates", words.findingCandidates],
+        ["outcome_candidates", words.outcomeCandidates],
+        ["operative_order_candidates", words.operativeCandidates],
+        ["issue_candidates", words.issueCandidates],
+        ["section_reference_candidates", words.sectionCandidates]
+      ];
+      result.candidate_case_positions.forEach(item => {
+        addText(words.decisionTitle, item.source_title);
+        addText(words.authorityLabel, item.authority);
+        candidateGroups.forEach(([key, label]) => {
+          (item[key] || []).forEach(candidate => {
+            addText(label, candidate.excerpt);
+            addText(words.paragraphLabel, candidate.paragraph_reference);
+            if (candidate.source_url) addSource(words.sourceParagraph, candidate.source_url);
+            addText(words.reviewNote, candidate.review_status);
+          });
+        });
+        addText("", item.note);
       });
     }
     if(result.case_positions?.length){

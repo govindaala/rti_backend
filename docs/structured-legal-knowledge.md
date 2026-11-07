@@ -18,6 +18,8 @@ LiveLaw जैसे गैर-सरकारी प्रकाशकों �
 - प्रत्येक उम्मीदवार के साथ मूल canonical URL, document ID, content hash, issue, holding, RTI sections और मिले हुए शब्द लौटते हैं।
 - `strong_keyword_overlap` / `partial_keyword_overlap` केवल lexical overlap labels हैं; ये AI confidence, कानूनी समानता या binding precedent का दावा नहीं हैं।
 - सत्यापित ratio के साथ `matched_terms`, `application_signal`, और `application_trace` लौटते हैं। ये बताते हैं कि कौन से शब्द मिले और कौन-सी शर्त/अपवाद जाँचना है; ये मामले के तथ्य पूरे होने या सिद्धांत लागू होने का स्वतः निर्णय नहीं देते।
+- `candidate_case_positions` में निर्णय के पाठ से निकले आवेदक/अपीलकर्ता के तर्क, PIO/प्रतिवादी के तर्क, आयोग/न्यायालय की टिप्पणियाँ, परिणाम और operative-order संकेत अलग समूहों में मिलते हैं। हर अंश के साथ स्रोत URL और केवल स्पष्ट रूप से मौजूद होने पर पैरा-संदर्भ दिया जाता है।
+- ये अंश rule-based `human_review_required` उम्मीदवार हैं, verified ratio नहीं। UI उन्हें सत्यापित ratio से अलग दिखाता है; पुराने crawler रिकॉर्ड के legacy मुद्दा/आदेश labels भी पढ़े जा सकते हैं।
 - Applicant, PIO और neutral दृष्टिकोण के लिए अलग जाँच-सूचियाँ मिलती हैं, लेकिन सभी के लिए एक ही verified corpus उपयोग होता है।
 - निर्णय का operative order, pinpoint paragraphs, तथ्यात्मक अंतर, बाद के निर्णय, stay/appeal और वर्तमान कानून की जाँच के बिना कोई अंतिम कानूनी निष्कर्ष नहीं निकाला जाता।
 
