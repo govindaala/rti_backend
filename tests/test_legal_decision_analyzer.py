@@ -1,4 +1,3 @@
-# Repository path: rti_backend/tests/test_legal_decision_analyzer.py
 from app.services.legal_decision_analyzer import analyze_decision_text
 
 def test_only_explicitly_linked_rti_sections_are_extracted():
@@ -22,7 +21,6 @@ def test_does_not_invent_conclusions_for_empty_text():
 def test_unrelated_section_is_not_mislabelled_as_rti_act():
     result = analyze_decision_text("Section 302 IPC was discussed. The appeal is dismissed.", "https://sci.gov.in/")
     assert result["cited_sections"] == []
-
 
 
 def test_extracts_party_arguments_findings_and_order_as_review_candidates():
@@ -62,7 +60,6 @@ def test_hindi_party_arguments_are_not_silently_promoted_to_holdings():
     assert result["analysis_status"] == "human_review_required"
 
 
-
 def test_pdf_page_references_are_attached_only_when_page_boundaries_exist():
     text = (
         "Background facts are recorded in the case.\f"
@@ -94,3 +91,16 @@ def test_non_pdf_text_does_not_receive_invented_page_reference():
         if item["kind"] == "applicant_argument_candidate"
     )
     assert "page_reference" not in applicant
+
+
+def test_transition_words_alone_do_not_create_operative_order_candidates():
+    text = (
+        "Accordingly, the appellant submitted that the requested record was never supplied. "
+        "Therefore, the CPIO submitted that the record was not held by the office."
+    )
+    result = analyze_decision_text(text, "https://cic.gov.in/orders/arguments-only")
+    kinds = {item["kind"] for item in result["key_paragraphs"]}
+    assert "applicant_argument_candidate" in kinds
+    assert "pio_argument_candidate" in kinds
+    assert "operative_order_candidate" not in kinds
+    assert result["holding"] is None

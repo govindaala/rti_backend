@@ -16,9 +16,21 @@ ISSUE_HINTS = (
 HOLDING_HINTS = (
     "held that", "it is held", "we hold", "appeal is allowed", "appeal is dismissed",
     "appeal stands dismissed", "appeal stands allowed", "is hereby directed",
-    "we direct", "accordingly", "therefore", "ordered that", "the commission directs",
+    "we direct", "ordered that", "the commission directs",
     "आदेश दिया जाता", "अपील खारिज", "अपील स्वीकार", "निर्देशित किया जाता",
-    "निर्णय लिया", "तदनुसार",
+    "निर्णय लिया", "आदेशानुसार",
+)
+OPERATIVE_ORDER_HINTS = (
+    "appeal is allowed", "appeal is dismissed", "appeal stands allowed",
+    "appeal stands dismissed", "appeal is partly allowed",
+    "the cpio is directed", "the pio is directed",
+    "public information officer is directed", "respondent is directed",
+    "is hereby directed", "we direct", "the commission directs",
+    "ordered that", "shall provide", "shall furnish", "shall disclose",
+    "is directed to provide", "is directed to furnish",
+    "आदेश दिया जाता", "निर्देशित किया जाता", "निर्देश दिया जाता",
+    "सूचना उपलब्ध कराएं", "सूचना प्रदान करें", "अभिलेख उपलब्ध कराएं",
+    "अपील खारिज", "अपील स्वीकार", "आंशिक रूप से स्वीकार",
 )
 APPLICANT_ARGUMENT_HINTS = (
     "appellant submitted", "applicant submitted", "appellant contended",
@@ -137,6 +149,10 @@ def analyze_decision_text(text: str | None, source_url: str) -> dict[str, Any]:
         (sentence, page) for sentence, page in located_sentences
         if any(hint in sentence.lower() for hint in HOLDING_HINTS)
     ]
+    order_entries = [
+        (sentence, page) for sentence, page in located_sentences
+        if any(hint in sentence.lower() for hint in OPERATIVE_ORDER_HINTS)
+    ]
     holding = holding_entries[-1][0] if holding_entries else None
     sections = _explicit_rti_sections(content)
 
@@ -171,17 +187,14 @@ def analyze_decision_text(text: str | None, source_url: str) -> dict[str, Any]:
                 sentence, source_url, page_number,
             ))
 
-    for sentence, page_number in holding_entries[-3:]:
-        if not any(
-            item["excerpt"] == _clean_excerpt(sentence, 220)
-            and item["kind"] == "operative_order_candidate"
-            for item in candidates
-        ):
-            candidates.append(_candidate(
-                "operative_order_candidate",
-                "अंतिम आदेश/निर्देश का संभावित अंश; मानव पुष्टि आवश्यक",
-                sentence, source_url, page_number,
-            ))
+    # Transition words such as "accordingly" and "therefore" are not orders by themselves.
+    # Only explicit dispositive/directive language can create an operative-order candidate.
+    for sentence, page_number in order_entries[-3:]:
+        candidates.append(_candidate(
+            "operative_order_candidate",
+            "अंतिम आदेश/निर्देश का संभावित अंश; मानव पुष्टि आवश्यक",
+            sentence, source_url, page_number,
+        ))
 
     if sections:
         candidates.append({
