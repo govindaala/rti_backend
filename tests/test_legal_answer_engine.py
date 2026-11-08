@@ -135,3 +135,67 @@ def test_legacy_crawler_key_paragraphs_remain_usable_as_review_candidates():
     position = result["candidate_case_positions"][0]
     assert position["issue_candidates"][0]["excerpt"].startswith("Whether")
     assert position["operative_order_candidates"][0]["review_status"] == "human_review_required"
+
+
+def test_evidence_citations_expose_page_and_paragraph_as_review_candidates():
+    evidence = [{
+        "document_id": "d6",
+        "title": "Paged CIC order",
+        "canonical_url": "https://cic.gov.in/order/6.pdf",
+        "decision_candidates": [
+            {
+                "kind": "applicant_argument_candidate",
+                "excerpt": "The appellant submitted that the record was not supplied.",
+                "paragraph_reference": "पैरा 5",
+                "page_reference": "PDF पृष्ठ 2",
+                "source_url": "https://cic.gov.in/order/6.pdf",
+                "review_status": "human_review_required",
+            }
+        ],
+    }]
+    result = build_legal_answer("record not supplied", "general", [], evidence, [])
+    citation = result["citations"][0]
+
+    assert citation["pinpoint"] == []
+    assert citation["pinpoint_candidates"] == [{
+        "source_url": "https://cic.gov.in/order/6.pdf",
+        "review_status": "human_review_required",
+        "kind": "applicant_argument_candidate",
+        "paragraph_reference": "पैरा 5",
+        "page_reference": "PDF पृष्ठ 2",
+        "excerpt": "The appellant submitted that the record was not supplied.",
+    }]
+
+
+def test_duplicate_decision_citation_preserves_verified_and_candidate_pinpoints_separately():
+    evidence = [{
+        "document_id": "d7",
+        "title": "CIC order",
+        "canonical_url": "https://cic.gov.in/order/7.pdf",
+        "decision_candidates": [{
+            "kind": "finding_candidate",
+            "excerpt": "The Commission observed that the search was incomplete.",
+            "paragraph_reference": "पैरा 11",
+            "page_reference": "PDF पृष्ठ 4",
+            "source_url": "https://cic.gov.in/order/7.pdf",
+            "review_status": "human_review_required",
+        }],
+    }]
+    principle = {
+        "document_id": "d7",
+        "source_title": "CIC order",
+        "source_url": "https://cic.gov.in/order/7.pdf",
+        "authority": "CIC",
+        "decision_date": "2025-04-01",
+        "pinpoint_citations": [{"paragraph": "10"}],
+        "legal_status": "verified_current",
+        "principle_type": "ratio_decidendi",
+    }
+    result = build_legal_answer("search duty", "general", [], evidence, [principle])
+
+    assert len(result["citations"]) == 1
+    citation = result["citations"][0]
+    assert citation["pinpoint"] == [{"paragraph": "10"}]
+    assert citation["pinpoint_candidates"][0]["paragraph_reference"] == "पैरा 11"
+    assert citation["pinpoint_candidates"][0]["review_status"] == "human_review_required"
+

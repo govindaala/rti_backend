@@ -57,14 +57,18 @@ def build_legal_answer(
         exceptions.extend(str(value) for value in (item.get("exceptions") or []) if value)
 
     for item in evidence:
-        citations.append({
+        citation = {
             "title": item.get("title"),
             "authority": item.get("authority"),
             "decision_date": item.get("decision_date"),
             "url": item.get("canonical_url"),
             "pinpoint": [],
             "document_id": item.get("document_id"),
-        })
+        }
+        pinpoint_candidates = _candidate_pinpoint_references(item)
+        if pinpoint_candidates:
+            citation["pinpoint_candidates"] = pinpoint_candidates
+        citations.append(citation)
 
     citations = _dedupe_citations(citations)
     if current:
@@ -121,6 +125,55 @@ def build_legal_answer(
 
 
 
+def _candidate_kind_and_review_status(item: dict[str, Any]) -> tuple[str | None, str | None]:
+    """Keep legacy label handling identical across candidate display and citation paths."""
+    kind = item.get("kind")
+    review_status = item.get("review_status")
+    if not kind:
+        legacy_label = str(item.get("label") or "")
+        if "मुद्दे" in legacy_label:
+            kind = "issue_candidate"
+        elif "आदेश" in legacy_label:
+            kind = "operative_order_candidate"
+        elif "धारा" in legacy_label:
+            kind = "section_reference_candidate"
+        if kind:
+            review_status = "human_review_required"
+    return kind, review_status
+
+
+def _candidate_pinpoint_references(document: dict[str, Any]) -> list[dict[str, Any]]:
+    """Expose extracted para/page locations separately from verified legal pinpoints."""
+    candidates = document.get("decision_candidates") or document.get("key_paragraphs") or []
+    references: list[dict[str, Any]] = []
+    for item in candidates:
+        if not isinstance(item, dict):
+            continue
+        kind, review_status = _candidate_kind_and_review_status(item)
+        if review_status != "human_review_required":
+            continue
+        paragraph = item.get("paragraph_reference")
+        page = item.get("page_reference")
+        if not paragraph and not page:
+            continue
+        reference: dict[str, Any] = {
+            "source_url": item.get("source_url") or document.get("canonical_url"),
+            "review_status": "human_review_required",
+        }
+        if kind:
+            reference["kind"] = kind
+        if paragraph:
+            reference["paragraph_reference"] = paragraph
+        if page:
+            reference["page_reference"] = page
+        if item.get("excerpt"):
+            reference["excerpt"] = item["excerpt"]
+        if item.get("label"):
+            reference["label"] = item["label"]
+        references.append(reference)
+    return _merge_unique_dicts(references)
+
+
 def _candidate_case_positions(evidence: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Expose short extracted party/finding/order passages as review candidates only."""
     labels = {
@@ -139,19 +192,7 @@ def _candidate_case_positions(evidence: list[dict[str, Any]]) -> list[dict[str, 
         for item in candidates:
             if not isinstance(item, dict):
                 continue
-            kind = item.get("kind")
-            review_status = item.get("review_status")
-            if not kind:
-                # Older crawls stored only a label/excerpt in key_paragraphs.
-                legacy_label = str(item.get("label") or "")
-                if "मुद्दे" in legacy_label:
-                    kind = "issue_candidate"
-                elif "आदेश" in legacy_label:
-                    kind = "operative_order_candidate"
-                elif "धारा" in legacy_label:
-                    kind = "section_reference_candidate"
-                if kind:
-                    review_status = "human_review_required"
+            kind, review_status = _candidate_kind_and_review_status(item)
             if review_status != "human_review_required":
                 continue
             target = labels.get(kind)
@@ -256,13 +297,50 @@ def _dedupe_strings(values: list[str]) -> list[str]:
     return list(dict.fromkeys(value.strip() for value in values if value.strip()))
 
 
-def _dedupe_citations(values: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    seen: set[tuple[str, str]] = set()
-    result = []
+def _merge_unique_dicts(values: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged: list[dict[str, Any]] = []
+    seen: set[str] = set()
     for value in values:
-        key = (str(value.get("document_id") or ""), str(value.get("url") or ""))
+        if not isinstance(value, dict):
+            continue
+        key = repr(sorted((str(name), repr(item)) for name, item in value.items()))
         if key in seen:
             continue
         seen.add(key)
-        result.append(value)
+        merged.append(value)
+    return merged
+
+
+def _dedupe_citations(values: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    result: list[dict[str, Any]] = []
+    for value in values:
+        key = (str(value.get("document_id") or ""), str(value.get("url") or ""))
+        existing = by_key.get(key)
+        if existing is None:
+            existing = dict(value)
+            existing["pinpoint"] = _merge_unique_dicts(existing.get("pinpoint") or [])
+            if existing.get("pinpoint_candidates"):
+                existing["pinpoint_candidates"] = _merge_unique_dicts(
+                    existing["pinpoint_candidates"]
+                )
+            by_key[key] = existing
+            result.append(existing)
+            continue
+
+        # One decision may support a verified principle and also have review-only
+        # extracted snippets. Preserve both without merging candidate refs into
+        # the verified pinpoint list.
+        existing["pinpoint"] = _merge_unique_dicts(
+            (existing.get("pinpoint") or []) + (value.get("pinpoint") or [])
+        )
+        candidate_refs = (
+            (existing.get("pinpoint_candidates") or [])
+            + (value.get("pinpoint_candidates") or [])
+        )
+        if candidate_refs:
+            existing["pinpoint_candidates"] = _merge_unique_dicts(candidate_refs)
+        for field in ("title", "authority", "decision_date", "url"):
+            if not existing.get(field) and value.get(field):
+                existing[field] = value[field]
     return result
