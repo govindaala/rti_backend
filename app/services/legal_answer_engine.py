@@ -73,23 +73,21 @@ def build_legal_answer(
     citations = _dedupe_citations(citations)
     if current:
         status = "source_based_draft"
-        direct_answer = (
-            "उपलब्ध मानव-सत्यापित वर्तमान ratio records के आधार पर नीचे प्रारंभिक "
-            "कानूनी स्थिति दी गई है। इसे अपने तथ्यों और उद्धृत निर्णय के मूल अनुच्छेद "
-            "से मिलाकर ही अंतिम निष्कर्ष मानें।"
-        )
+        direct_answer = _build_direct_answer(current)
     elif evidence:
         status = "evidence_found_no_verified_ratio"
         direct_answer = (
-            "संबंधित सत्यापित निर्णय मिले हैं, लेकिन इस प्रश्न पर वर्तमान स्थिति "
-            "के रूप में मानव-सत्यापित ratio record नहीं मिला। इसलिए अभी निश्चित "
-            "कानूनी निष्कर्ष देना उचित नहीं है।"
+            "सीधा जवाब: अभी उपलब्ध सामग्री से इस प्रश्न पर लागू कानूनी नियम का "
+            "निश्चित निष्कर्ष नहीं निकाला जा सकता। संबंधित निर्णय मिले हैं, लेकिन "
+            "उनमें से किसी का वर्तमान ratio इस प्रश्न पर सत्यापित रूप से स्थापित नहीं है। "
+            "इसलिए केवल शब्द-समानता के आधार पर अधिकार, उल्लंघन या राहत घोषित नहीं की जा रही।"
         )
     else:
         status = "insufficient_verified_material"
         direct_answer = (
-            "इस प्रश्न के लिए उपलब्ध सत्यापित corpus में पर्याप्त संबंधित सामग्री "
-            "नहीं मिली। कोई कानूनी निष्कर्ष अनुमान से नहीं बनाया गया है।"
+            "सीधा जवाब: उपलब्ध सत्यापित कानूनी ज्ञान-संग्रह में इस प्रश्न का उत्तर "
+            "देने योग्य स्रोत नहीं मिला। इसका अर्थ यह नहीं कि आपका दावा गलत है; "
+            "अभी इस इंजन के पास निष्कर्ष सिद्ध करने के लिए पर्याप्त सत्यापित सामग्री नहीं है।"
         )
 
     fact_gaps = _question_specific_fact_gaps(intent, topics)
@@ -123,6 +121,48 @@ def build_legal_answer(
         ),
     }
 
+
+
+
+def _build_direct_answer(principles: list[dict[str, Any]]) -> str:
+    """Render a conclusion only from current, verified ratio records."""
+    usable = [
+        item for item in principles
+        if item.get("legal_status") == "verified_current"
+        and item.get("principle_type") == "ratio_decidendi"
+        and str(item.get("principle_text") or "").strip()
+    ]
+    if not usable:
+        return (
+            "सीधा जवाब: सत्यापित वर्तमान ratio का रिकॉर्ड मिला है, लेकिन उसमें "
+            "उद्धृत करने योग्य सिद्धांत-पाठ उपलब्ध नहीं है। इसलिए कानूनी निष्कर्ष "
+            "देना अभी सुरक्षित नहीं है।"
+        )
+
+    primary = usable[0]
+    principle = str(primary["principle_text"]).strip()
+    source = str(primary.get("source_title") or primary.get("authority") or "सत्यापित निर्णय")
+    scope = str(primary.get("scope") or "").strip()
+    conditions = [str(value).strip() for value in (primary.get("conditions") or []) if str(value).strip()]
+    exceptions = [str(value).strip() for value in (primary.get("exceptions") or []) if str(value).strip()]
+
+    parts = ["सीधा जवाब: उपलब्ध मानव-सत्यापित वर्तमान ratio के अनुसार, " + principle]
+    if scope:
+        parts.append("इस सिद्धांत का दर्ज दायरा: " + scope)
+    if conditions:
+        parts.append("इसका प्रयोग इन शर्तों के अधीन है: " + "；".join(conditions[:3]))
+    if exceptions:
+        parts.append("दर्ज अपवाद/सीमाएँ: " + "；".join(exceptions[:3]))
+    parts.append(
+        "यह निष्कर्ष " + source + " के सत्यापित ratio record पर आधारित है; "
+        "प्रश्न के तथ्यों से उसका मिलान अलग से आवश्यक है।"
+    )
+    if len(usable) > 1:
+        parts.append(
+            f"अतिरिक्त {len(usable) - 1} सत्यापित ratio record भी उपलब्ध हैं; "
+            "उनके संभावित भिन्न/पूरक प्रभाव को साथ में पढ़ना होगा।"
+        )
+    return " ".join(parts)[:2400]
 
 
 def _candidate_kind_and_review_status(item: dict[str, Any]) -> tuple[str | None, str | None]:
