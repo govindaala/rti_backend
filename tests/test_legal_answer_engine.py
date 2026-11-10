@@ -199,3 +199,55 @@ def test_duplicate_decision_citation_preserves_verified_and_candidate_pinpoints_
     assert citation["pinpoint_candidates"][0]["paragraph_reference"] == "पैरा 11"
     assert citation["pinpoint_candidates"][0]["review_status"] == "human_review_required"
 
+
+
+
+def test_current_ratio_produces_conclusion_first_answer_with_scope_and_source():
+    principle = {
+        "document_id": "d8",
+        "source_title": "Verified CIC decision",
+        "source_url": "https://cic.gov.in/order/8",
+        "authority": "CIC",
+        "principle_text": "A public authority must disclose an existing record unless a statutory exemption applies.",
+        "scope": "Applies to records held by or under the control of the public authority.",
+        "conditions": ["The record must exist or be under the authority's control."],
+        "exceptions": ["A valid exemption under section 8 may apply."],
+        "legal_status": "verified_current",
+        "principle_type": "ratio_decidendi",
+    }
+    result = build_legal_answer("Can I obtain the record?", "general", [], [], [principle])
+
+    assert result["direct_answer"].startswith("सीधा जवाब:")
+    assert principle["principle_text"] in result["direct_answer"]
+    assert principle["scope"] in result["direct_answer"]
+    assert principle["conditions"][0] in result["direct_answer"]
+    assert principle["exceptions"][0] in result["direct_answer"]
+    assert principle["source_title"] in result["direct_answer"]
+
+
+def test_related_evidence_without_current_ratio_gives_explicit_non_conclusion():
+    result = build_legal_answer(
+        "Can I obtain the record?", "general", [],
+        [{"document_id": "d9", "title": "Related decision",
+          "canonical_url": "https://cic.gov.in/order/9"}],
+        [],
+    )
+
+    assert result["direct_answer"].startswith("सीधा जवाब:")
+    assert "निश्चित निष्कर्ष नहीं" in result["direct_answer"]
+    assert "शब्द-समानता" in result["direct_answer"]
+
+
+def test_verified_current_ratio_without_principle_text_does_not_invent_conclusion():
+    principle = {
+        "document_id": "d10",
+        "source_title": "Incomplete ratio record",
+        "source_url": "https://cic.gov.in/order/10",
+        "legal_status": "verified_current",
+        "principle_type": "ratio_decidendi",
+    }
+    result = build_legal_answer("question", "general", [], [], [principle])
+
+    assert result["answer_status"] == "source_based_draft"
+    assert result["direct_answer"].startswith("सीधा जवाब:")
+    assert "निष्कर्ष देना अभी सुरक्षित नहीं" in result["direct_answer"]
