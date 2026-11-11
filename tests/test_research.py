@@ -225,5 +225,5 @@ def test_machine_extracted_candidates_are_retrieved_separately_from_verified_res
     assert body["candidate_result_count"] == 1
     assert body["candidate_evidence"][0]["verification_status"] == "machine_extracted_candidate"
     assert body["candidate_citations"][0]["verification_status"] == "machine_extracted_candidate"
-    assert body["candidate_case_positions"][0]["finding_candidates"][0]["paragraph_reference"] == "पैरा 9"
+    assert body["candidate_case_positions"][0]["court_or_commission_finding_candidates"][0]["paragraph_reference"] == "पैरा 9"
     assert body["direct_answer"].startswith("सीधा जवाब:")
