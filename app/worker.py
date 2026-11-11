@@ -29,8 +29,8 @@ WORKER_ID = f"{socket.gethostname()}:{os.getpid()}"
 
 
 def document_status_for_extraction(ocr_required: bool) -> str:
-    """OCR बाकी हो तो दस्तावेज़ को review-ready न मानकर अलग queue state दें."""
-    return "needs_ocr" if ocr_required else "review_required"
+    """OCR state को extraction_status में रखें; legal status schema का अनुमत review_required रहे."""
+    return "review_required"
 
 
 
@@ -353,8 +353,8 @@ def process_one(allowed_source_ids: list[str] | None = None) -> bool:
                     extraction_status=EXCLUDED.extraction_status,
                     ocr_required=EXCLUDED.ocr_required,
                     status=CASE
-                        WHEN EXCLUDED.ocr_required THEN 'needs_ocr'
-                        WHEN rti.legal_documents.status = 'needs_ocr'
+                        WHEN EXCLUDED.ocr_required THEN 'review_required'
+                        WHEN rti.legal_documents.extraction_status = 'needs_ocr'
                              AND EXCLUDED.extraction_status IN ('extracted', 'extracted_ocr')
                         THEN 'review_required'
                         WHEN rti.legal_documents.content_sha256
