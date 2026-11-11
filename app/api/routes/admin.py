@@ -126,7 +126,7 @@ def dashboard_summary(request: Request) -> dict:
             )
             read_documents, decision_documents, extracted_bytes = cursor.fetchone()
             cursor.execute(
-                """SELECT count(*) FILTER (WHERE ocr_required = true AND status = 'needs_ocr'),
+                """SELECT count(*) FILTER (WHERE ocr_required = true AND extraction_status = 'needs_ocr'),
                           count(*) FILTER (WHERE extraction_status = 'extracted_ocr'),
                           count(*) FILTER (WHERE extraction_status = 'empty_text')
                    FROM rti.legal_documents"""
