@@ -50,21 +50,26 @@ def test_admin_javascript_contains_human_document_review_action() -> None:
     assert "confirm_reviewed" in response.text
 
 
-def test_applicant_workspace_calls_verified_research_api() -> None:
-    """Applicant form सक्रिय हो और backend checklist API से जुड़ा हो."""
+def test_applicant_workspace_renders_conclusion_first_legal_answer() -> None:
+    """Applicant UI निष्कर्ष पहले दिखाए और candidate sources को verified से अलग रखे."""
     page = client.get("/app")
     script = client.get("/assets/app.js")
 
     assert page.status_code == 200
     assert 'id="analysis-result"' in page.text
+    assert 'id="analysis-answer"' in page.text
+    assert 'id="analysis-checklist"' not in page.text
     assert 'type="submit" data-i18n="submitQuestion"' in page.text
     assert 'type="submit" disabled' not in page.text
     assert script.status_code == 200
     assert "/api/v1/research/apply" in script.text
     assert "/api/v1/analysis/checklist" not in script.text
-    assert "result.evidence" in script.text
+    assert "renderLegalAnswer" in script.text
+    assert "result.direct_answer" in script.text
+    assert "result.candidate_evidence" in script.text
     assert "result.verified_principles" in script.text
-    assert "मूल आधिकारिक स्रोत खोलें" in script.text
+    assert "result.common_legal_checks" not in script.text
+    assert "मशीन-निकाले स्रोत" in script.text
 
 
 def test_applicant_checklist_api_returns_rule_based_checks() -> None:
