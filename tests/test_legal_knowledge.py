@@ -65,6 +65,7 @@ def test_verified_principles_are_added_to_application_response(monkeypatch):
     from app.services import research
 
     monkeypatch.setattr(research, "search_verified_documents", lambda *_args: [])
+    monkeypatch.setattr(research, "search_candidate_documents", lambda *_args: [])
     monkeypatch.setattr(
         research, "search_verified_principles",
         lambda *_args: [{
