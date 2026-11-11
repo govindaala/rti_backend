@@ -28,6 +28,7 @@ def test_research_returns_only_verified_corpus_results(monkeypatch) -> None:
         ]
 
     monkeypatch.setattr(research, "search_verified_documents", fake_search)
+    monkeypatch.setattr(research, "search_candidate_documents", lambda *_args: [])
     response = client.post(
         "/api/v1/research/search",
         json={"query": "सूचना", "limit": 5},
@@ -90,6 +91,7 @@ def test_legal_application_uses_verified_evidence_and_returns_traceable_sources(
         }]
 
     monkeypatch.setattr(research, "search_verified_documents", fake_search)
+    monkeypatch.setattr(research, "search_candidate_documents", lambda *_args: [])
     monkeypatch.setattr(research, "search_verified_principles", lambda *_args: [])
     response = client.post(
         "/api/v1/research/apply",
@@ -118,6 +120,7 @@ def test_legal_application_uses_verified_evidence_and_returns_traceable_sources(
 
 def test_legal_application_neutral_role_returns_empty_when_verified_corpus_is_empty(monkeypatch) -> None:
     monkeypatch.setattr(research, "search_verified_documents", lambda _query, _limit=10: [])
+    monkeypatch.setattr(research, "search_candidate_documents", lambda _query, _limit=10: [])
     monkeypatch.setattr(research, "search_verified_principles", lambda *_args: [])
     response = client.post(
         "/api/v1/research/apply",
@@ -166,3 +169,61 @@ def test_legal_intelligence_excludes_unverified_records():
     record = {"document_id": "unverified", "title": "धारा 20 जुर्माना",
               "verification_status": "pending", "canonical_url": "https://example.test"}
     assert merge_ranked_documents([record], plan, 5) == []
+
+
+
+def test_machine_extracted_candidates_are_retrieved_separately_from_verified_results(monkeypatch) -> None:
+    candidate = {
+        "document_id": "candidate-1",
+        "title": "CIC machine-extracted order",
+        "canonical_url": "https://cic.gov.in/orders/candidate-1",
+        "authority": "CIC",
+        "decision_date": None,
+        "document_type": "order",
+        "excerpt": "धारा 8 के तहत सूचना रोकने का संभावित अंश",
+        "legal_issue": "धारा 8 की छूट",
+        "holding": None,
+        "cited_sections": ["धारा 8"],
+        "content_sha256": "c" * 64,
+        "analysis_status": "human_review_required",
+        "analysis_method": "rule_based_structured_v3",
+        "extraction_status": "extracted",
+        "verification_status": "machine_extracted_candidate",
+        "decision_candidates": [{
+            "kind": "finding_candidate",
+            "label": "आयोग की finding का संभावित अंश",
+            "excerpt": "The Commission observes that the exemption must be justified.",
+            "source_url": "https://cic.gov.in/orders/candidate-1",
+            "paragraph_reference": "पैरा 9",
+            "review_status": "human_review_required",
+        }],
+    }
+    monkeypatch.setattr(research, "search_verified_documents", lambda *_args: [])
+    monkeypatch.setattr(research, "search_candidate_documents", lambda *_args: [candidate])
+    monkeypatch.setattr(research, "search_verified_principles", lambda *_args: [])
+
+    search_response = client.post(
+        "/api/v1/research/search",
+        json={"query": "धारा 8", "limit": 5},
+    )
+    assert search_response.status_code == 200
+    search_body = search_response.json()
+    assert search_body["results"] == []
+    assert search_body["result_count"] == 0
+    assert search_body["candidate_result_count"] == 1
+    assert search_body["candidate_results"][0]["verification_status"] == "machine_extracted_candidate"
+
+    apply_response = client.post(
+        "/api/v1/research/apply",
+        json={"question": "क्या धारा 8 के तहत सूचना रोकी जा सकती है?", "role": "neutral"},
+    )
+    assert apply_response.status_code == 200
+    body = apply_response.json()
+    assert body["evidence"] == []
+    assert body["verified_principles"] == []
+    assert body["citations"] == []
+    assert body["candidate_result_count"] == 1
+    assert body["candidate_evidence"][0]["verification_status"] == "machine_extracted_candidate"
+    assert body["candidate_citations"][0]["verification_status"] == "machine_extracted_candidate"
+    assert body["candidate_case_positions"][0]["finding_candidates"][0]["paragraph_reference"] == "पैरा 9"
+    assert body["direct_answer"].startswith("सीधा जवाब:")

@@ -9,7 +9,10 @@ from app.models.research import (
     LegalResearchQuery,
     LegalResearchResponse,
 )
-from app.repositories.legal_knowledge import search_verified_documents
+from app.repositories.legal_knowledge import (
+    search_candidate_documents,
+    search_verified_documents,
+)
 from app.repositories.legal_principles import search_verified_principles
 from app.services.legal_answer_engine import build_legal_answer
 from app.services.legal_intelligence import (
@@ -20,18 +23,22 @@ from app.services.legal_intelligence import (
 )
 
 RESEARCH_NOTE = (
-    "परिणाम केवल मानव-सत्यापित corpus से हैं। उद्धृत निर्णय की वर्तमान वैधता, "
-    "बाद के निर्णयों और लागू कानून की जाँच किए बिना इसे अंतिम कानूनी राय न मानें।"
+    "सत्यापित परिणाम और machine-extracted candidates अलग-अलग लौटाए जाते हैं। "
+    "Candidate सामग्री retrieval के लिए उपलब्ध है, पर उसे verified finding या ratio नहीं माना जाता। "
+    "वर्तमान कानून और बाद के निर्णयों का मिलान आवश्यक है।"
 )
 
 
 def run_legal_research(query: LegalResearchQuery) -> LegalResearchResponse:
     """सत्यापित स्रोत खोजें और प्रत्येक परिणाम का स्रोत/हैश बनाए रखें."""
     records = search_verified_documents(query.query.strip(), query.limit)
+    candidate_records = search_candidate_documents(query.query.strip(), query.limit)
     return LegalResearchResponse(
         query=query.query.strip(),
         results=records,
         result_count=len(records),
+        candidate_results=candidate_records,
+        candidate_result_count=len(candidate_records),
         note=RESEARCH_NOTE,
     )
 
@@ -54,6 +61,18 @@ def apply_verified_legal_knowledge(
     for query in plan.search_queries:
         candidates.extend(search_verified_documents(query, request.limit))
     ranked_records = merge_ranked_documents(candidates, plan, request.limit)
+
+    machine_candidates = []
+    for query in plan.search_queries:
+        machine_candidates.extend(search_candidate_documents(query, request.limit))
+    unique_machine_candidates: dict[str, dict] = {}
+    for record in machine_candidates:
+        if record.get("verification_status") != "machine_extracted_candidate":
+            continue
+        key = str(record.get("document_id") or record.get("canonical_url") or "")
+        if key and key not in unique_machine_candidates:
+            unique_machine_candidates[key] = record
+    candidate_evidence = list(unique_machine_candidates.values())[:request.limit]
 
     evidence = []
     answer_evidence = []
@@ -145,6 +164,7 @@ def apply_verified_legal_knowledge(
         topics=list(plan.topics),
         evidence=answer_evidence,
         principles=traced_principles,
+        candidate_evidence=candidate_evidence,
     )
     return LegalApplicationResponse(
         question=request.question,
@@ -154,6 +174,8 @@ def apply_verified_legal_knowledge(
         answer_guidance=list(plan.guidance),
         evidence=evidence,
         verified_principles=traced_principles,
+        candidate_evidence=candidate_evidence,
+        candidate_result_count=len(candidate_evidence),
         **answer,
         result_count=len(evidence),
         common_legal_checks=common_checks,
@@ -161,7 +183,7 @@ def apply_verified_legal_knowledge(
         limitations=[
             "यह offline Python intelligence है: Hindi-English intent पहचान, कानूनी concept expansion और explainable field-weighted ranking; यह paid LLM या generative legal opinion नहीं है।",
             "प्रासंगिकता label confidence score या binding precedent का निष्कर्ष नहीं है।",
-            "केवल मानव-सत्यापित corpus के परिणाम शामिल हैं; खाली corpus पर कोई निर्णय लागू नहीं किया जा सकता।",
+            "केवल मानव-सत्यापित स्रोत verified evidence/ratio बनते हैं; machine-extracted candidates अलग label में retrieval हेतु उपलब्ध हैं और स्वतः verified नहीं होते।",
             "अंतिम कानूनी निष्कर्ष से पहले वर्तमान कानून, बाद के निर्णय, stay/appeal और मूल paragraph सत्यापित करें।",
         ],
     )

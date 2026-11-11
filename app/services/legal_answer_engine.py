@@ -14,6 +14,7 @@ def build_legal_answer(
     topics: list[str],
     evidence: list[dict[str, Any]],
     principles: list[dict[str, Any]],
+    candidate_evidence: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Build an auditable answer draft with explicit evidence and fact gaps."""
     current = [
@@ -26,7 +27,28 @@ def build_legal_answer(
     positions: list[dict[str, Any]] = []
     conditions: list[str] = []
     exceptions: list[str] = []
-    candidate_case_positions = _candidate_case_positions(evidence)
+    candidate_evidence = candidate_evidence or []
+    candidate_case_positions = (
+        _candidate_case_positions(evidence)
+        + _candidate_case_positions(candidate_evidence)
+    )
+    candidate_citations: list[dict[str, Any]] = []
+    for item in candidate_evidence:
+        citation = {
+            "title": item.get("title") or item.get("canonical_url"),
+            "authority": item.get("authority"),
+            "decision_date": item.get("decision_date"),
+            "url": item.get("canonical_url"),
+            "document_id": item.get("document_id"),
+            "verification_status": "machine_extracted_candidate",
+            "analysis_status": item.get("analysis_status"),
+            "analysis_method": item.get("analysis_method"),
+            "extraction_status": item.get("extraction_status"),
+        }
+        pinpoint_candidates = _candidate_pinpoint_references(item)
+        if pinpoint_candidates:
+            citation["pinpoint_candidates"] = pinpoint_candidates
+        candidate_citations.append(citation)
 
     for item in current:
         citation = {
@@ -96,11 +118,12 @@ def build_legal_answer(
         "प्रत्येक लागू शर्त और अपवाद को अपने वास्तविक तथ्यों से अलग-अलग मिलाएँ।",
         "नीचे दिए स्रोत लिंक खोलकर मूल निर्णय, संबंधित अनुच्छेद और बाद के निर्णय जाँचें।",
     ]
-    if not current:
+    if not current and candidate_evidence:
         next_steps.insert(
             0,
-            "संबंधित निर्णयों की मानव समीक्षा कर सही ratio, परिणाम और pinpoint paragraph "
-            "दर्ज होने तक इस उत्तर को शोध-संकेत मात्र मानें।",
+            "मशीन-निकाले candidate अंशों को मूल निर्णय से मिलाकर पक्षों के तर्क, "
+            "न्यायालय/आयोग की finding और operative order अलग पहचानें; candidate को "
+            "अपने-आप ratio या binding precedent न मानें।",
         )
 
     return {
@@ -109,6 +132,7 @@ def build_legal_answer(
         "legal_basis": legal_basis,
         "case_positions": positions,
         "candidate_case_positions": candidate_case_positions,
+        "candidate_citations": _dedupe_citations(candidate_citations),
         "conditions_to_check": _dedupe_strings(conditions),
         "exceptions_to_check": _dedupe_strings(exceptions),
         "fact_gaps": fact_gaps,

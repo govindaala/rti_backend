@@ -116,8 +116,10 @@ def test_recover_stale_jobs_uses_database_lease_timeout(monkeypatch) -> None:
     assert "source_id = ANY" in connection.fake_cursor.query
 
 
-def test_ocr_required_document_is_not_marked_review_ready() -> None:
-    assert worker.document_status_for_extraction(True) == "needs_ocr"
+def test_ocr_required_document_uses_nonverified_legal_status() -> None:
+    # OCR state is persisted separately in extraction_status; legal status must
+    # remain review_required because needs_ocr is not an allowed legal status.
+    assert worker.document_status_for_extraction(True) == "review_required"
 
 
 def test_text_extracted_document_remains_human_review_required() -> None:

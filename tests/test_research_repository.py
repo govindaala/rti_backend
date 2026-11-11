@@ -75,3 +75,43 @@ def test_empty_query_does_not_connect_to_database(monkeypatch) -> None:
 
     monkeypatch.setattr(legal_knowledge, "get_connection", unexpected_connection)
     assert legal_knowledge.search_verified_documents("   ") == []
+
+
+
+def test_candidate_search_returns_machine_extracted_rows_without_verifying_them(monkeypatch) -> None:
+    cursor = FakeCursor()
+    cursor.fetchall = lambda: [(
+        "candidate-1", "CIC candidate order", "https://cic.gov.in/orders/candidate-1",
+        "CIC", None, "order", "धारा 8 का candidate excerpt", "d" * 64,
+        "machine summary", "धारा 8", None, ["धारा 8"],
+        [{
+            "kind": "finding_candidate",
+            "excerpt": "The Commission observes that the exemption must be justified.",
+            "paragraph_reference": "पैरा 9",
+            "review_status": "human_review_required",
+        }],
+        "human_review_required", "rule_based_structured_v3", "extracted",
+    )]
+    monkeypatch.setattr(
+        legal_knowledge, "get_connection", lambda: FakeConnection(cursor)
+    )
+
+    results = legal_knowledge.search_candidate_documents("धारा 8", 4)
+
+    assert len(results) == 1
+    assert results[0]["verification_status"] == "machine_extracted_candidate"
+    assert results[0]["analysis_status"] == "human_review_required"
+    assert results[0]["analysis_method"] == "rule_based_structured_v3"
+    assert results[0]["decision_candidates"][0]["paragraph_reference"] == "पैरा 9"
+    assert "d.status = 'review_required'" in cursor.sql
+    assert "d.analysis_status = 'human_review_required'" in cursor.sql
+    assert "d.status = 'verified'" not in cursor.sql
+    assert cursor.params == ("धारा 8", "%धारा 8%", 4)
+
+
+def test_empty_candidate_query_does_not_connect_to_database(monkeypatch) -> None:
+    def unexpected_connection():
+        raise AssertionError("empty query must not open a database connection")
+
+    monkeypatch.setattr(legal_knowledge, "get_connection", unexpected_connection)
+    assert legal_knowledge.search_candidate_documents("   ") == []

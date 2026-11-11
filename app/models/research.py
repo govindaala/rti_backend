@@ -30,10 +30,12 @@ class LegalEvidence(BaseModel):
 
 
 class LegalResearchResponse(BaseModel):
-    """स्रोत-सहित खोज परिणाम."""
+    """Verified results और अलग machine-extracted candidate results."""
     query: str
     results: list[LegalEvidence]
     result_count: int
+    candidate_results: list[LegalEvidence] = Field(default_factory=list)
+    candidate_result_count: int = 0
     note: str
 
 
@@ -102,6 +104,9 @@ class LegalApplicationResponse(BaseModel):
     legal_basis: list[dict] = Field(default_factory=list)
     case_positions: list[dict] = Field(default_factory=list)
     candidate_case_positions: list[dict] = Field(default_factory=list)
+    candidate_evidence: list[dict] = Field(default_factory=list)
+    candidate_result_count: int = 0
+    candidate_citations: list[dict] = Field(default_factory=list)
     conditions_to_check: list[str] = Field(default_factory=list)
     exceptions_to_check: list[str] = Field(default_factory=list)
     fact_gaps: list[str] = Field(default_factory=list)
