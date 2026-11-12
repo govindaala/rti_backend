@@ -22,6 +22,8 @@ def test_answer_uses_only_verified_current_ratio_and_keeps_citations():
         "pinpoint_citations": [{"paragraph": "7"}],
         "legal_status": "verified_current",
         "principle_type": "ratio_decidendi",
+        "matched_terms": ["delay", "penalty", "section"],
+        "application_signal": "potentially_relevant_review_facts",
     }
     result = build_legal_answer(
         "PIO delay penalty?", "penalty_or_accountability", ["penalty"],
@@ -214,6 +216,8 @@ def test_current_ratio_produces_conclusion_first_answer_with_scope_and_source():
         "exceptions": ["A valid exemption under section 8 may apply."],
         "legal_status": "verified_current",
         "principle_type": "ratio_decidendi",
+        "matched_terms": ["record", "authority", "disclosure"],
+        "application_signal": "potentially_relevant_review_facts",
     }
     result = build_legal_answer("Can I obtain the record?", "general", [], [], [principle])
 
@@ -251,3 +255,44 @@ def test_verified_current_ratio_without_principle_text_does_not_invent_conclusio
     assert result["answer_status"] == "source_based_draft"
     assert result["direct_answer"].startswith("सीधा जवाब:")
     assert "निष्कर्ष देना अभी सुरक्षित नहीं" in result["direct_answer"]
+
+
+
+def test_verified_ratio_without_question_level_match_is_not_applied():
+    principle = {
+        "document_id": "d11",
+        "source_title": "Verified but unrelated decision",
+        "source_url": "https://cic.gov.in/order/11",
+        "principle_text": "A different legal issue has a specific statutory test.",
+        "legal_status": "verified_current",
+        "principle_type": "ratio_decidendi",
+        "matched_terms": [],
+        "application_signal": "needs_fact_comparison",
+    }
+
+    result = build_legal_answer("Question about an unrelated issue", "general", [], [], [principle])
+
+    assert result["answer_status"] == "evidence_found_no_verified_ratio"
+    assert result["direct_answer"].startswith("सीधा जवाब:")
+    assert principle["principle_text"] not in result["direct_answer"]
+    assert result["legal_basis"] == []
+    assert result["citations"][0]["url"] == principle["source_url"]
+
+
+def test_two_keyword_overlap_is_not_enough_to_apply_verified_ratio():
+    principle = {
+        "document_id": "d12",
+        "source_title": "Weakly matched decision",
+        "source_url": "https://cic.gov.in/order/12",
+        "principle_text": "The rule concerns disclosure of a record.",
+        "legal_status": "verified_current",
+        "principle_type": "ratio_decidendi",
+        "matched_terms": ["record", "disclosure"],
+        "application_signal": "limited_keyword_overlap",
+    }
+
+    result = build_legal_answer("Question about record disclosure", "general", [], [], [principle])
+
+    assert result["answer_status"] == "evidence_found_no_verified_ratio"
+    assert result["legal_basis"] == []
+    assert "पर्याप्त मुद्दा-स्तरीय संबंध स्थापित नहीं हुआ" in result["direct_answer"]
