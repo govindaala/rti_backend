@@ -17,10 +17,21 @@ def build_legal_answer(
     candidate_evidence: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Build an auditable answer draft with explicit evidence and fact gaps."""
-    current = [
+    verified_ratio_records = [
         item for item in principles
         if item.get("legal_status") == "verified_current"
         and item.get("principle_type") == "ratio_decidendi"
+    ]
+    # A verified ratio is not automatically applicable to every question.
+    # Only a question-level match may enter the legal basis; keyword overlap
+    # remains a retrieval signal, never proof of factual applicability.
+    current = [
+        item for item in verified_ratio_records
+        if _has_question_level_match(item)
+    ]
+    not_applied = [
+        item for item in verified_ratio_records
+        if not _has_question_level_match(item)
     ]
     citations: list[dict[str, Any]] = []
     legal_basis: list[dict[str, Any]] = []
@@ -96,14 +107,23 @@ def build_legal_answer(
     if current:
         status = "source_based_draft"
         direct_answer = _build_direct_answer(current)
-    elif evidence:
+    elif evidence or not_applied:
         status = "evidence_found_no_verified_ratio"
-        direct_answer = (
-            "सीधा जवाब: अभी उपलब्ध सामग्री से इस प्रश्न पर लागू कानूनी नियम का "
-            "निश्चित निष्कर्ष नहीं निकाला जा सकता। संबंधित निर्णय मिले हैं, लेकिन "
-            "उनमें से किसी का वर्तमान ratio इस प्रश्न पर सत्यापित रूप से स्थापित नहीं है। "
-            "इसलिए केवल शब्द-समानता के आधार पर अधिकार, उल्लंघन या राहत घोषित नहीं की जा रही।"
-        )
+        if not_applied:
+            direct_answer = (
+                "सीधा जवाब: सत्यापित वर्तमान ratio के रिकॉर्ड मिले हैं, लेकिन उनका "
+                "इस प्रश्न से पर्याप्त मुद्दा-स्तरीय संबंध स्थापित नहीं हुआ। केवल "
+                "शब्द-समानता से किसी निर्णय को आपके मामले पर लागू नहीं माना जा सकता; "
+                "इसलिए अभी इन रिकॉर्डों के आधार पर अधिकार, उल्लंघन या राहत का निष्कर्ष "
+                "नहीं निकाला जा रहा।"
+            )
+        else:
+            direct_answer = (
+                "सीधा जवाब: अभी उपलब्ध सामग्री से इस प्रश्न पर लागू कानूनी नियम का "
+                "निश्चित निष्कर्ष नहीं निकाला जा सकता। संबंधित निर्णय मिले हैं, लेकिन "
+                "उनमें से किसी का वर्तमान ratio इस प्रश्न पर सत्यापित रूप से स्थापित नहीं है। "
+                "इसलिए केवल शब्द-समानता के आधार पर अधिकार, उल्लंघन या राहत घोषित नहीं की जा रही।"
+            )
     else:
         status = "insufficient_verified_material"
         direct_answer = (
@@ -148,6 +168,19 @@ def build_legal_answer(
 
 
 
+def _has_question_level_match(principle: dict[str, Any]) -> bool:
+    """Require a meaningful question match before applying a verified ratio."""
+    matched_terms = {
+        str(term).strip().casefold()
+        for term in (principle.get("matched_terms") or [])
+        if str(term).strip()
+    }
+    return (
+        principle.get("application_signal") == "potentially_relevant_review_facts"
+        and len(matched_terms) >= 3
+    )
+
+
 def _build_direct_answer(principles: list[dict[str, Any]]) -> str:
     """Render a conclusion only from current, verified ratio records."""
     usable = [
@@ -179,7 +212,8 @@ def _build_direct_answer(principles: list[dict[str, Any]]) -> str:
         parts.append("दर्ज अपवाद/सीमाएँ: " + "；".join(exceptions[:3]))
     parts.append(
         "यह निष्कर्ष " + source + " के सत्यापित ratio record पर आधारित है; "
-        "प्रश्न के तथ्यों से उसका मिलान अलग से आवश्यक है।"
+        "तीन या अधिक प्रश्न-संबंधी search terms का मिलना केवल प्रारंभिक relevance signal है, "
+        "तथ्यगत समानता या आपके मामले में precedent की applicability का प्रमाण नहीं।"
     )
     if len(usable) > 1:
         parts.append(
