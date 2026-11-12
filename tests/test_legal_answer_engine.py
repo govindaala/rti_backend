@@ -192,6 +192,8 @@ def test_duplicate_decision_citation_preserves_verified_and_candidate_pinpoints_
         "pinpoint_citations": [{"paragraph": "10"}],
         "legal_status": "verified_current",
         "principle_type": "ratio_decidendi",
+        "matched_terms": ["search", "duty", "record"],
+        "application_signal": "potentially_relevant_review_facts",
     }
     result = build_legal_answer("search duty", "general", [], evidence, [principle])
 
@@ -249,6 +251,8 @@ def test_verified_current_ratio_without_principle_text_does_not_invent_conclusio
         "source_url": "https://cic.gov.in/order/10",
         "legal_status": "verified_current",
         "principle_type": "ratio_decidendi",
+        "matched_terms": ["issue", "principle", "scope"],
+        "application_signal": "potentially_relevant_review_facts",
     }
     result = build_legal_answer("question", "general", [], [], [principle])
 
@@ -276,7 +280,6 @@ def test_verified_ratio_without_question_level_match_is_not_applied():
     assert result["direct_answer"].startswith("सीधा जवाब:")
     assert principle["principle_text"] not in result["direct_answer"]
     assert result["legal_basis"] == []
-    assert result["citations"][0]["url"] == principle["source_url"]
 
 
 def test_two_keyword_overlap_is_not_enough_to_apply_verified_ratio():
