@@ -34,7 +34,7 @@ def test_gateway_sends_verified_context_and_accepts_valid_citations(monkeypatch)
         def __exit__(self, *_args): return False
         def post(self, url, headers, **kwargs):
             captured.update(url=url, headers=headers, body=kwargs["json"])
-            return httpx.Response(200, json={"choices":[{"message":{"content":json.dumps({
+            return httpx.Response(200, request=httpx.Request("POST", url), json={"choices":[{"message":{"content":json.dumps({
                 "answer":"धारा 20 की शर्तें जाँचना आवश्यक है।","source_ids":["verified-1"],
                 "uncertainties":["आदेश का पूरा पाठ जाँचना होगा।"]},ensure_ascii=False)}}]})
     _mock_settings(monkeypatch)
@@ -54,7 +54,7 @@ def test_gateway_rejects_citations_not_in_verified_context(monkeypatch):
         def __enter__(self): return self
         def __exit__(self, *_args): return False
         def post(self, *_args, **_kwargs):
-            return httpx.Response(200,json={"choices":[{"message":{"content":json.dumps({
+            return httpx.Response(200, request=httpx.Request("POST", "https://llm.example/v1/chat/completions"), json={"choices":[{"message":{"content":json.dumps({
                 "answer":"कानूनी उत्तर","source_ids":["invented-id"],"uncertainties":[]})}}]})
     _mock_settings(monkeypatch)
     monkeypatch.setattr(llm_gateway.httpx,"Client",FakeClient)
