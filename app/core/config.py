@@ -30,6 +30,11 @@ class Settings:
     data_gov_api_key: str | None = os.getenv("DATA_GOV_API_KEY")
     data_gov_resource_ids: str = os.getenv("DATA_GOV_RESOURCE_IDS", "")
     data_gov_api_page_limit: int = int(os.getenv("DATA_GOV_API_PAGE_LIMIT", "100"))
+    # Optional OpenAI-compatible gateway (e.g. self-hosted FreeLLMAPI).
+    llm_api_base_url: str | None = os.getenv("LLM_API_BASE_URL")
+    llm_api_key: str | None = os.getenv("LLM_API_KEY")
+    llm_model: str | None = os.getenv("LLM_MODEL")
+    llm_timeout_seconds: float = float(os.getenv("LLM_TIMEOUT_SECONDS", "30"))
 
 
 settings = Settings()
