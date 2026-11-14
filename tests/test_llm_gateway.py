@@ -1,12 +1,15 @@
 """Tests for the optional FreeLLMAPI/OpenAI-compatible gateway."""
 import json
+from types import SimpleNamespace
+
 import httpx
 import pytest
-from app.models.research import LegalApplicationResponse
+
 from app.services import llm_gateway
 
 
 def _research():
+    from app.models.research import LegalApplicationResponse
     return LegalApplicationResponse(
         question="क्या PIO पर विलंब के लिए दंड लग सकता है?", role="applicant",
         evidence=[{"document_id":"verified-1","title":"CIC order",
@@ -16,22 +19,25 @@ def _research():
         common_legal_checks=[], role_specific_checks=[], limitations=[], result_count=1)
 
 
+def _mock_settings(monkeypatch, **overrides):
+    values = {"llm_api_base_url":"https://llm.example/v1", "llm_api_key":"test-key",
+              "llm_model":"test-model", "llm_timeout_seconds":12}
+    values.update(overrides)
+    monkeypatch.setattr(llm_gateway, "settings", SimpleNamespace(**values))
+
+
 def test_gateway_sends_verified_context_and_accepts_valid_citations(monkeypatch):
     captured = {}
     class FakeClient:
         def __init__(self, timeout): captured["timeout"] = timeout
         def __enter__(self): return self
         def __exit__(self, *_args): return False
-        def post(self, url, headers, json_payload=None, **kwargs):
-            body = kwargs.get("json", json_payload)
-            captured.update(url=url, headers=headers, body=body)
+        def post(self, url, headers, **kwargs):
+            captured.update(url=url, headers=headers, body=kwargs["json"])
             return httpx.Response(200, json={"choices":[{"message":{"content":json.dumps({
                 "answer":"धारा 20 की शर्तें जाँचना आवश्यक है।","source_ids":["verified-1"],
                 "uncertainties":["आदेश का पूरा पाठ जाँचना होगा।"]},ensure_ascii=False)}}]})
-    monkeypatch.setattr(llm_gateway.settings,"llm_api_base_url","https://llm.example/v1")
-    monkeypatch.setattr(llm_gateway.settings,"llm_api_key","test-key")
-    monkeypatch.setattr(llm_gateway.settings,"llm_model","test-model")
-    monkeypatch.setattr(llm_gateway.settings,"llm_timeout_seconds",12)
+    _mock_settings(monkeypatch)
     monkeypatch.setattr(llm_gateway.httpx,"Client",FakeClient)
     result=llm_gateway.generate_grounded_answer(_research())
     assert result["source_ids"]==["verified-1"]
@@ -50,17 +56,13 @@ def test_gateway_rejects_citations_not_in_verified_context(monkeypatch):
         def post(self, *_args, **_kwargs):
             return httpx.Response(200,json={"choices":[{"message":{"content":json.dumps({
                 "answer":"कानूनी उत्तर","source_ids":["invented-id"],"uncertainties":[]})}}]})
-    monkeypatch.setattr(llm_gateway.settings,"llm_api_base_url","https://llm.example/v1")
-    monkeypatch.setattr(llm_gateway.settings,"llm_api_key","test-key")
-    monkeypatch.setattr(llm_gateway.settings,"llm_model","test-model")
+    _mock_settings(monkeypatch)
     monkeypatch.setattr(llm_gateway.httpx,"Client",FakeClient)
     with pytest.raises(llm_gateway.LLMGatewayError,match="citation"):
         llm_gateway.generate_grounded_answer(_research())
 
 
 def test_gateway_disabled_without_credentials(monkeypatch):
-    monkeypatch.setattr(llm_gateway.settings,"llm_api_base_url",None)
-    monkeypatch.setattr(llm_gateway.settings,"llm_api_key",None)
-    monkeypatch.setattr(llm_gateway.settings,"llm_model",None)
+    _mock_settings(monkeypatch, llm_api_base_url=None, llm_api_key=None, llm_model=None)
     with pytest.raises(llm_gateway.LLMGatewayError,match="not configured"):
         llm_gateway.generate_grounded_answer(_research())
