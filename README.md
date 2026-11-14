@@ -38,6 +38,7 @@ uvicorn app.main:app --reload
 - `POST /api/v1/admin/documents/{document_id}/retry-ocr` — केवल `needs_ocr` documents को authenticated/CSRF-protected retry queue में डालें; verification नहीं करता.
 - `POST /api/v1/research/search` — केवल `verified` legal documents में खोज.
 - `POST /api/v1/research/apply` — नए प्रश्न पर verified judgments और मानव-सत्यापित वर्तमान ratio लागू करें.
+- `POST /api/v1/research/answer` — केवल verified evidence/current ratio पर optional FreeLLMAPI/OpenAI-compatible हिन्दी उत्तर; citations allowlist से validate होते हैं.
 - `POST /api/v1/knowledge/principles` — Admin द्वारा ratio/obiter/प्रक्रियात्मक सिद्धांत pending review में दर्ज करें.
 - `GET /api/v1/knowledge/principles/pending` — Admin review queue.
 - `POST /api/v1/knowledge/principles/{id}/review` — सिद्धांत की वर्तमान/बदली/overruled स्थिति की समीक्षा.
@@ -62,12 +63,16 @@ uvicorn app.main:app --reload
 | `DATA_GOV_RESOURCE_IDS` | comma-separated data.gov.in dataset resource IDs |
 | `DATA_GOV_API_PAGE_LIMIT` | प्रति API request अधिकतम records; default 100, maximum 1000 |
 | `DATABASE_URL` | Supabase PostgreSQL connection string |
+| `LLM_API_BASE_URL` | वैकल्पिक gateway base URL, जैसे `https://gateway.example/v1` |
+| `LLM_API_KEY` | gateway का unified bearer key; केवल Render secret |
+| `LLM_MODEL` | gateway में उपलब्ध model ID |
+| `LLM_TIMEOUT_SECONDS` | request timeout; default 30 seconds |
 
 `ADMIN_SESSION_SECRET` को `ADMIN_PASS` से अलग रखें। किसी भी secret को GitHub, browser code, README, logs या chat में न डालें। Browser को केवल 8 घंटे की signed `HttpOnly`, `Secure`, `SameSite=Strict` session cookie मिलती है। State-changing admin requests में CSRF token आवश्यक है। पासवर्ड या signing secret बदलने पर पुराने sessions अमान्य हो जाते हैं।
 
 यह implementation अभी single-admin environment credential authentication है; multi-user accounts, granular role/permission management और enterprise identity provider integration अभी शामिल नहीं हैं।
 
-## Supabase database
+## वैकल्पिक FreeLLMAPI / LLM gateway integration\n\nBackend में OpenAI-compatible `/chat/completions` adapter जोड़ा गया है। FreeLLMAPI को अलग से self-host करके उसके dashboard में provider keys जोड़ें, फिर Render web service में `LLM_API_BASE_URL` (gateway का `/v1` base URL), `LLM_API_KEY` (unified gateway key) और `LLM_MODEL` सेट करें। ये credentials केवल server-side Render environment में रखें; GitHub या browser में नहीं।\n\n`POST /api/v1/research/answer` पहले मौजूदा deterministic engine से verified evidence खोजता है, फिर उन्हीं verified documents और `verified_current` principles को LLM को देता है। Machine-extracted candidates LLM context से बाहर रहते हैं; लौटाए गए citation IDs को backend allowlist से जाँचता है। कोई verified evidence न मिले तो model call नहीं होता। LLM gateway बंद/अनुपलब्ध होने पर मूल `/research/apply` deterministic रूप से उपलब्ध रहता है। बाहरी LLM provider को भेजे गए प्रश्न/स्रोत अंश third-party processing के अधीन होंगे; production उपयोग से पहले PII redaction और provider retention/privacy terms की समीक्षा करें।\n\nFreeLLMAPI खुद RTI backend में embed नहीं होता; यह अलग gateway service है। इस code change से gateway server deploy या provider API keys provision नहीं होतीं।\n\n## Supabase database
 
 Supabase project के private `rti` schema में मुख्य tables:
 
