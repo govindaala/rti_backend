@@ -11,6 +11,7 @@ from app.models.research import (
     LegalResearchResponse,
 )
 from app.services.research import apply_verified_legal_knowledge, run_legal_research
+from app.services.llm_gateway import LLMGatewayError, generate_grounded_answer
 
 router = APIRouter(prefix="/research", tags=["कानूनी शोध"])
 
@@ -31,6 +32,31 @@ def apply_legal_knowledge(payload: LegalApplicationRequest) -> LegalApplicationR
     """केवल verified corpus से समानताएँ खोजें; परिणाम प्रारंभिक शोध-सहायता है."""
     try:
         return apply_verified_legal_knowledge(payload)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail="कानूनी ज्ञान-संग्रह अभी configure नहीं है") from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=503, detail="कानूनी अनुप्रयोग सेवा अस्थायी रूप से अनुपलब्ध है") from exc
+
+
+@router.post("/answer", summary="सत्यापित स्रोतों पर AI-सहायित हिन्दी उत्तर")
+def generate_legal_answer(payload: LegalApplicationRequest) -> dict:
+    """पहले deterministic verified research; फिर केवल उसी verified context पर optional LLM."""
+    try:
+        research = apply_verified_legal_knowledge(payload)
+        if not research.evidence and not research.verified_principles:
+            return {
+                "question": research.question, "role": research.role,
+                "answer": research.direct_answer, "source_ids": [],
+                "uncertainties": research.fact_gaps or ["सत्यापित कानूनी स्रोत उपलब्ध नहीं हैं।"],
+                "status": "insufficient_verified_material",
+                "research": research.model_dump(mode="json"),
+            }
+        generated = generate_grounded_answer(research)
+        return {"question": research.question, "role": research.role, **generated,
+                "research": research.model_dump(mode="json")}
+    except LLMGatewayError as exc:
+        raise HTTPException(status_code=503,
+            detail="AI gateway configure नहीं है या अस्थायी रूप से अनुपलब्ध है; deterministic /research/apply उपलब्ध है।") from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail="कानूनी ज्ञान-संग्रह अभी configure नहीं है") from exc
     except psycopg.Error as exc:
