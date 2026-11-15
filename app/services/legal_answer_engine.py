@@ -23,8 +23,8 @@ def build_legal_answer(
         and item.get("principle_type") == "ratio_decidendi"
     ]
     # A verified ratio is not automatically applicable to every question.
-    # Only a question-level match may enter the legal basis; keyword overlap
-    # remains a retrieval signal, never proof of factual applicability.
+    # A ratio enters the legal basis only after a reviewed, source-pinned fact comparison.
+    # Keyword overlap remains a retrieval signal and is never proof of applicability.
     current = [
         item for item in verified_ratio_records
         if _has_question_level_match(item)
@@ -169,15 +169,24 @@ def build_legal_answer(
 
 
 def _has_question_level_match(principle: dict[str, Any]) -> bool:
-    """Require a meaningful question match before applying a verified ratio."""
-    matched_terms = {
-        str(term).strip().casefold()
-        for term in (principle.get("matched_terms") or [])
-        if str(term).strip()
-    }
+    """Apply a ratio only after a reviewed, source-pinned material-fact comparison."""
+    comparison = principle.get("fact_comparison")
+    if not isinstance(comparison, dict):
+        return False
+
+    material_matches = comparison.get("material_fact_matches") or []
+    comparison_pinpoints = comparison.get("pinpoint_citations") or []
+    source_pinpoints = principle.get("pinpoint_citations") or []
+    has_source_pinpoint = any(
+        isinstance(point, dict) and point in source_pinpoints
+        for point in comparison_pinpoints
+    )
     return (
-        principle.get("application_signal") == "potentially_relevant_review_facts"
-        and len(matched_terms) >= 3
+        principle.get("application_signal") == "fact_comparison_confirmed"
+        and comparison.get("verification_status") == "human_verified"
+        and isinstance(material_matches, list)
+        and any(isinstance(item, str) and item.strip() for item in material_matches)
+        and has_source_pinpoint
     )
 
 

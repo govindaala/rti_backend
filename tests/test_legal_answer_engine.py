@@ -23,7 +23,10 @@ def test_answer_uses_only_verified_current_ratio_and_keeps_citations():
         "legal_status": "verified_current",
         "principle_type": "ratio_decidendi",
         "matched_terms": ["delay", "penalty", "section"],
-        "application_signal": "potentially_relevant_review_facts",
+        "application_signal": "fact_comparison_confirmed",
+        "fact_comparison": {"verification_status": "human_verified",
+                            "material_fact_matches": ["delay and statutory penalty issue"],
+                            "pinpoint_citations": [{"paragraph": "7"}]},
     }
     result = build_legal_answer(
         "PIO delay penalty?", "penalty_or_accountability", ["penalty"],
@@ -193,7 +196,10 @@ def test_duplicate_decision_citation_preserves_verified_and_candidate_pinpoints_
         "legal_status": "verified_current",
         "principle_type": "ratio_decidendi",
         "matched_terms": ["search", "duty", "record"],
-        "application_signal": "potentially_relevant_review_facts",
+        "application_signal": "fact_comparison_confirmed",
+        "fact_comparison": {"verification_status": "human_verified",
+                            "material_fact_matches": ["search duty issue"],
+                            "pinpoint_citations": [{"paragraph": "10"}]},
     }
     result = build_legal_answer("search duty", "general", [], evidence, [principle])
 
@@ -214,12 +220,16 @@ def test_current_ratio_produces_conclusion_first_answer_with_scope_and_source():
         "authority": "CIC",
         "principle_text": "A public authority must disclose an existing record unless a statutory exemption applies.",
         "scope": "Applies to records held by or under the control of the public authority.",
+        "pinpoint_citations": [{"paragraph": "4"}],
         "conditions": ["The record must exist or be under the authority's control."],
         "exceptions": ["A valid exemption under section 8 may apply."],
         "legal_status": "verified_current",
         "principle_type": "ratio_decidendi",
         "matched_terms": ["record", "authority", "disclosure"],
-        "application_signal": "potentially_relevant_review_facts",
+        "application_signal": "fact_comparison_confirmed",
+        "fact_comparison": {"verification_status": "human_verified",
+                            "material_fact_matches": ["existing record held by public authority"],
+                            "pinpoint_citations": [{"paragraph": "4"}]},
     }
     result = build_legal_answer("Can I obtain the record?", "general", [], [], [principle])
 
@@ -252,7 +262,11 @@ def test_verified_current_ratio_without_principle_text_does_not_invent_conclusio
         "legal_status": "verified_current",
         "principle_type": "ratio_decidendi",
         "matched_terms": ["issue", "principle", "scope"],
-        "application_signal": "potentially_relevant_review_facts",
+        "application_signal": "fact_comparison_confirmed",
+        "pinpoint_citations": [{"paragraph": "2"}],
+        "fact_comparison": {"verification_status": "human_verified",
+                            "material_fact_matches": ["reviewed material fact match"],
+                            "pinpoint_citations": [{"paragraph": "2"}]},
     }
     result = build_legal_answer("question", "general", [], [], [principle])
 
@@ -299,3 +313,24 @@ def test_two_keyword_overlap_is_not_enough_to_apply_verified_ratio():
     assert result["answer_status"] == "evidence_found_no_verified_ratio"
     assert result["legal_basis"] == []
     assert "पर्याप्त मुद्दा-स्तरीय संबंध स्थापित नहीं हुआ" in result["direct_answer"]
+
+
+
+def test_three_keyword_overlap_without_reviewed_fact_comparison_is_not_applied():
+    principle = {
+        "document_id": "d13",
+        "source_title": "Keyword-overlap only",
+        "source_url": "https://cic.gov.in/order/13",
+        "principle_text": "The disclosure rule depends on whether the authority holds the record.",
+        "legal_status": "verified_current",
+        "principle_type": "ratio_decidendi",
+        "matched_terms": ["record", "authority", "disclosure"],
+        "application_signal": "potentially_relevant_review_facts",
+        "pinpoint_citations": [{"paragraph": "9"}],
+    }
+
+    result = build_legal_answer("Question about record disclosure", "general", [], [], [principle])
+
+    assert result["answer_status"] == "evidence_found_no_verified_ratio"
+    assert result["legal_basis"] == []
+    assert principle["principle_text"] not in result["direct_answer"]
