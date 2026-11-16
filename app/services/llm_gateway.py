@@ -232,9 +232,12 @@ def generate_grounded_answer(research: LegalApplicationResponse) -> dict[str, An
             {"source_id": source_id, "claim": claim.strip(), "pinpoint": pinpoint}
         )
 
+    if not normalized_citations:
+        raise LLMGatewayError("LLM gateway answer has no verified citations")
+
     cited_ids = {item["source_id"] for item in normalized_citations}
-    if not set(source_ids).issubset(cited_ids):
-        raise LLMGatewayError("LLM gateway source IDs are not backed by citations")
+    if set(source_ids) != cited_ids:
+        raise LLMGatewayError("LLM gateway source IDs do not match citations")
     if not isinstance(fact_comparisons, list):
         raise LLMGatewayError("LLM gateway returned invalid fact comparisons")
 

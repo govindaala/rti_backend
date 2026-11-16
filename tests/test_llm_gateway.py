@@ -230,6 +230,63 @@ def test_gateway_rejects_non_conclusion_first_answer(monkeypatch):
         llm_gateway.generate_grounded_answer(_research())
 
 
+def test_gateway_rejects_answer_without_verified_citations(monkeypatch):
+    response = _valid_model_response()
+    response["source_ids"] = []
+    response["citations"] = []
+
+    class FakeClient:
+        def __init__(self, timeout):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def post(self, *_args, **_kwargs):
+            url = "https://llm.example/v1/chat/completions"
+            return httpx.Response(
+                200,
+                request=httpx.Request("POST", url),
+                json={"choices": [{"message": {"content": json.dumps(response, ensure_ascii=False)}}]},
+            )
+
+    _mock_settings(monkeypatch)
+    monkeypatch.setattr(llm_gateway.httpx, "Client", FakeClient)
+    with pytest.raises(llm_gateway.LLMGatewayError, match="no verified citations"):
+        llm_gateway.generate_grounded_answer(_research())
+
+
+def test_gateway_requires_source_ids_to_match_citation_ids(monkeypatch):
+    response = _valid_model_response()
+    response["source_ids"] = ["verified-1"]
+
+    class FakeClient:
+        def __init__(self, timeout):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def post(self, *_args, **_kwargs):
+            url = "https://llm.example/v1/chat/completions"
+            return httpx.Response(
+                200,
+                request=httpx.Request("POST", url),
+                json={"choices": [{"message": {"content": json.dumps(response, ensure_ascii=False)}}]},
+            )
+
+    _mock_settings(monkeypatch)
+    monkeypatch.setattr(llm_gateway.httpx, "Client", FakeClient)
+    with pytest.raises(llm_gateway.LLMGatewayError, match="do not match citations"):
+        llm_gateway.generate_grounded_answer(_research())
+
+
 def test_gateway_disabled_without_credentials(monkeypatch):
     _mock_settings(monkeypatch, llm_api_base_url=None, llm_api_key=None, llm_model=None)
     with pytest.raises(llm_gateway.LLMGatewayError, match="not configured"):
