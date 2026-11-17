@@ -223,11 +223,11 @@ function renderLegalAnswer(result) {
       addText("परिणाम", item.outcome);
     });
   }
-  if (!result.generated_answer && result.conditions_to_check?.length) {
+  if (!result.suppress_checklists && result.conditions_to_check?.length) {
     addHeading("लागू होने की शर्तें");
     result.conditions_to_check.forEach(item => addText("", item));
   }
-  if (!result.generated_answer && result.exceptions_to_check?.length) {
+  if (!result.suppress_checklists && result.exceptions_to_check?.length) {
     addHeading("कानूनी अपवाद/सीमाएँ");
     result.exceptions_to_check.forEach(item => addText("", item));
   }
@@ -379,13 +379,15 @@ document.getElementById("analysis-form").addEventListener("submit", async (event
           ? payload.next_steps
           : research.next_steps,
         generated_answer: !usedDeterministicFallback
-          && payload.status !== "insufficient_verified_material"
+          && payload.status !== "insufficient_verified_material",
+        suppress_checklists: true
       };
     } else {
       latestAnswer = {
         ...payload,
         answer_status: "deterministic_fallback_no_llm",
-        generated_answer: false
+        generated_answer: false,
+        suppress_checklists: true
       };
     }
     renderLegalAnswer(latestAnswer);
