@@ -62,10 +62,14 @@ def test_applicant_workspace_renders_conclusion_first_legal_answer() -> None:
     assert 'type="submit" data-i18n="submitQuestion"' in page.text
     assert 'type="submit" disabled' not in page.text
     assert script.status_code == 200
-    assert "/api/v1/research/apply" in script.text
+    assert "/api/v1/research/answer" in script.text
+    assert script.text.index("/api/v1/research/answer") < script.text.index("/api/v1/research/apply")
+    assert "/api/v1/research/apply" in script.text  # deterministic fallback only
     assert "/api/v1/analysis/checklist" not in script.text
     assert "renderLegalAnswer" in script.text
     assert "result.direct_answer" in script.text
+    assert "result.generated_answer" in script.text
+    assert "result.fact_comparisons" in script.text
     assert "result.candidate_evidence" in script.text
     assert "result.verified_principles" in script.text
     assert "result.common_legal_checks" not in script.text

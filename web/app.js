@@ -223,11 +223,11 @@ function renderLegalAnswer(result) {
       addText("परिणाम", item.outcome);
     });
   }
-  if (result.conditions_to_check?.length) {
+  if (!result.generated_answer && result.conditions_to_check?.length) {
     addHeading("लागू होने की शर्तें");
     result.conditions_to_check.forEach(item => addText("", item));
   }
-  if (result.exceptions_to_check?.length) {
+  if (!result.generated_answer && result.exceptions_to_check?.length) {
     addHeading("कानूनी अपवाद/सीमाएँ");
     result.exceptions_to_check.forEach(item => addText("", item));
   }
@@ -239,9 +239,26 @@ function renderLegalAnswer(result) {
     addHeading("अनुशंसित अगला कदम");
     result.next_steps.forEach(item => addText("", item));
   }
+  if (result.fact_comparisons?.length) {
+    addHeading("निर्णय के तथ्यों से तुलना");
+    result.fact_comparisons.forEach(item => {
+      addText("निर्णय", item.source_title || item.source_id);
+      addText("लागू होने की स्थिति", item.applicability);
+      addText("समानताएँ", item.similarities?.join(" | "));
+      addText("अंतर", item.differences?.join(" | "));
+      addText("कारण", item.reason);
+      addText("स्रोत-स्थिति", item.verification_status);
+      if (item.pinpoint) addText("पैराग्राफ/पेज", JSON.stringify(item.pinpoint));
+    });
+  }
   if (result.citations?.length) {
-    addHeading("सत्यापित स्रोत");
-    result.citations.forEach(item => addSource(item.title || "मूल निर्णय", item.url));
+    addHeading("उत्तर में उद्धृत स्रोत");
+    result.citations.forEach(item => {
+      addText("उद्धरण का आधार", item.claim);
+      addText("स्रोत-स्थिति", item.verification_status);
+      if (item.pinpoint) addText("पैराग्राफ/पेज", JSON.stringify(item.pinpoint));
+      addSource(item.title || "मूल निर्णय", item.url);
+    });
   }
   if (result.candidate_citations?.length) {
     addHeading("Candidate स्रोत — verified citations नहीं");
@@ -295,24 +312,83 @@ document.getElementById("analysis-form").addEventListener("submit", async (event
   statusNode.textContent = words.loading;
 
   try {
-    const response = await fetch("/api/v1/research/apply", {
+    const requestBody = JSON.stringify({ role, question: facts, limit: 8 });
+    let response = await fetch("/api/v1/research/answer", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Accept": "application/json"
       },
-      body: JSON.stringify({ role, question: facts, limit: 8 }),
+      body: requestBody,
       credentials: "same-origin"
     });
-    const payload = await response.json();
+    let payload = await response.json();
+    let usedDeterministicFallback = false;
+
+    if (!response.ok && response.status === 503) {
+      response = await fetch("/api/v1/research/apply", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: requestBody,
+        credentials: "same-origin"
+      });
+      payload = await response.json();
+      usedDeterministicFallback = true;
+    }
     if (!response.ok) {
       const detail = Array.isArray(payload.detail)
         ? payload.detail.map((item) => item.msg).join("; ")
         : payload.detail;
       throw new Error(detail || "HTTP " + response.status);
     }
-    latestAnswer = payload;
-    renderLegalAnswer(payload);
+
+    if (payload.research) {
+      const research = payload.research;
+      const sourceIndex = new Map();
+      (research.evidence || []).forEach(item => sourceIndex.set(item.document_id, {
+        title: item.title, url: item.canonical_url, verification_status: "verified"
+      }));
+      (research.verified_principles || []).forEach(item => sourceIndex.set(item.principle_id, {
+        title: item.source_title, url: item.source_url, verification_status: "verified_current"
+      }));
+      (research.candidate_evidence || []).forEach(item => sourceIndex.set(item.document_id, {
+        title: item.title, url: item.canonical_url,
+        verification_status: "machine_extracted_candidate"
+      }));
+      latestAnswer = {
+        ...research,
+        direct_answer: payload.answer || research.direct_answer,
+        answer_status: usedDeterministicFallback
+          ? "deterministic_fallback_no_llm"
+          : payload.status,
+        citations: (payload.citations || []).map(item => ({
+          ...item,
+          ...(sourceIndex.get(item.source_id) || {})
+        })),
+        fact_comparisons: (payload.fact_comparisons || []).map(item => ({
+          ...item,
+          source_title: sourceIndex.get(item.source_id)?.title
+        })),
+        fact_gaps: payload.uncertainties?.length
+          ? payload.uncertainties
+          : research.fact_gaps,
+        next_steps: payload.next_steps?.length
+          ? payload.next_steps
+          : research.next_steps,
+        generated_answer: !usedDeterministicFallback
+          && payload.status !== "insufficient_verified_material"
+      };
+    } else {
+      latestAnswer = {
+        ...payload,
+        answer_status: "deterministic_fallback_no_llm",
+        generated_answer: false
+      };
+    }
+    renderLegalAnswer(latestAnswer);
     statusNode.textContent = words.completed;
   } catch (error) {
     statusNode.textContent = words.error + error.message;
