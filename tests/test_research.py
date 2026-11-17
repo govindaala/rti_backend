@@ -241,11 +241,12 @@ def test_answer_endpoint_runs_for_candidate_only_research(monkeypatch):
     }
 
     class CandidateOnlyResearch:
-        question = "क्या धारा 8 के तहत सूचना रोकी जा सकती है?"
-        role = "applicant"
-        evidence = []
-        verified_principles = []
-        candidate_evidence = [candidate]
+        def __init__(self):
+            self.question = "क्या धारा 8 के तहत सूचना रोकी जा सकती है?"
+            self.role = "applicant"
+            self.evidence = []
+            self.verified_principles = []
+            self.candidate_evidence = [candidate]
 
         def model_dump(self, mode=None):
             return {"candidate_evidence": self.candidate_evidence}
