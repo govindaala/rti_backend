@@ -38,12 +38,16 @@ def apply_legal_knowledge(payload: LegalApplicationRequest) -> LegalApplicationR
         raise HTTPException(status_code=503, detail="कानूनी अनुप्रयोग सेवा अस्थायी रूप से अनुपलब्ध है") from exc
 
 
-@router.post("/answer", summary="सत्यापित स्रोतों पर AI-सहायित हिन्दी उत्तर")
+@router.post("/answer", summary="स्रोत-स्थिति सहित AI-सहायित हिन्दी उत्तर")
 def generate_legal_answer(payload: LegalApplicationRequest) -> dict:
-    """पहले deterministic verified research; फिर केवल उसी verified context पर optional LLM."""
+    """Verified sources और अलग-label machine candidates से conclusion-first उत्तर दें."""
     try:
         research = apply_verified_legal_knowledge(payload)
-        if not research.evidence and not research.verified_principles:
+        if (
+            not research.evidence
+            and not research.verified_principles
+            and not research.candidate_evidence
+        ):
             return {
                 "question": research.question, "role": research.role,
                 "answer": research.direct_answer, "source_ids": [],

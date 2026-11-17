@@ -227,3 +227,52 @@ def test_machine_extracted_candidates_are_retrieved_separately_from_verified_res
     assert body["candidate_citations"][0]["verification_status"] == "machine_extracted_candidate"
     assert body["candidate_case_positions"][0]["court_or_commission_finding_candidates"][0]["paragraph_reference"] == "पैरा 9"
     assert body["direct_answer"].startswith("सीधा जवाब:")
+
+
+
+def test_answer_endpoint_runs_for_candidate_only_research(monkeypatch):
+    from app.api.routes import research as research_routes
+
+    candidate = {
+        "document_id": "candidate-1",
+        "title": "CIC machine-extracted order",
+        "canonical_url": "https://cic.gov.in/orders/candidate-1",
+        "verification_status": "machine_extracted_candidate",
+    }
+
+    class CandidateOnlyResearch:
+        question = "क्या धारा 8 के तहत सूचना रोकी जा सकती है?"
+        role = "applicant"
+        evidence = []
+        verified_principles = []
+        candidate_evidence = [candidate]
+
+        def model_dump(self, mode=None):
+            return {"candidate_evidence": self.candidate_evidence}
+
+    generated = {
+        "answer": "सीधा जवाब: machine-extracted candidate से केवल प्रारंभिक संकेत मिलता है।",
+        "source_ids": ["candidate-1"],
+        "status": "generated_with_candidate_context",
+    }
+    calls = {}
+    monkeypatch.setattr(
+        research_routes,
+        "apply_verified_legal_knowledge",
+        lambda *_args: CandidateOnlyResearch(),
+    )
+
+    def fake_generate(value):
+        calls["candidate_evidence"] = value.candidate_evidence
+        return generated
+
+    monkeypatch.setattr(research_routes, "generate_grounded_answer", fake_generate)
+    response = client.post(
+        "/api/v1/research/answer",
+        json={"question": "क्या धारा 8 के तहत सूचना रोकी जा सकती है?", "role": "applicant"},
+    )
+
+    assert response.status_code == 200
+    assert calls["candidate_evidence"][0]["verification_status"] == "machine_extracted_candidate"
+    assert response.json()["status"] == "generated_with_candidate_context"
+    assert response.json()["answer"].startswith("सीधा जवाब:")

@@ -140,10 +140,101 @@ def test_gateway_sends_conclusion_first_analysis_and_accepts_verified_citations(
     assert payload["verified_current_principles"][0]["applicant_arguments_accepted"]
     assert payload["verified_current_principles"][0]["pio_arguments_rejected"]
     assert payload["citation_index"][1]["pinpoints"] == [{"paragraph": "7"}]
-    assert "candidate_evidence" not in payload
+    assert payload["machine_extracted_candidates"][0]["id"] == "candidate-1"
+    assert payload["machine_extracted_candidates"][0]["verification_status"] == "machine_extracted_candidate"
     assert "candidate_case_positions" not in payload
-    assert "candidate-1" not in captured["body"]["messages"][1]["content"]
+    assert "candidate-1" in captured["body"]["messages"][1]["content"]
     assert "baseline_checks" not in payload
+
+
+def test_gateway_uses_candidate_only_context_with_explicit_source_label(monkeypatch):
+    research = _research()
+    candidate = {
+        "document_id": "candidate-1",
+        "title": "CIC machine-extracted order",
+        "canonical_url": "https://cic.gov.in/orders/candidate-1",
+        "authority": "CIC",
+        "decision_date": None,
+        "excerpt": "The Commission observes that the exemption must be justified.",
+        "legal_issue": "धारा 8 की छूट",
+        "holding": None,
+        "cited_sections": ["धारा 8"],
+        "content_sha256": "d" * 64,
+        "analysis_status": "human_review_required",
+        "analysis_method": "rule_based_structured_v3",
+        "extraction_status": "extracted",
+        "verification_status": "machine_extracted_candidate",
+        "decision_candidates": [{
+            "kind": "finding_candidate",
+            "excerpt": "The Commission observes that the exemption must be justified.",
+            "source_url": "https://cic.gov.in/orders/candidate-1",
+            "paragraph_reference": "पैरा 9",
+            "review_status": "human_review_required",
+        }],
+    }
+    research = research.model_copy(update={
+        "evidence": [],
+        "verified_principles": [],
+        "candidate_evidence": [candidate],
+        "candidate_result_count": 1,
+        "legal_basis": [],
+        "case_positions": [],
+    })
+    pinpoint = {
+        "kind": "finding_candidate",
+        "paragraph_reference": "पैरा 9",
+        "excerpt": "The Commission observes that the exemption must be justified.",
+        "source_url": "https://cic.gov.in/orders/candidate-1",
+        "review_status": "human_review_required",
+    }
+    response_payload = {
+        "answer": (
+            "सीधा जवाब: मशीन-निकाले candidate अंश से प्रारंभिक संकेत मिलता है कि "
+            "छूट का आधार स्पष्ट होना चाहिए; इसे अभी सत्यापित ratio नहीं माना जा सकता।"
+        ),
+        "source_ids": ["candidate-1"],
+        "citations": [{
+            "source_id": "candidate-1",
+            "claim": "आयोग की finding का संभावित अंश",
+            "pinpoint": pinpoint,
+        }],
+        "fact_comparisons": [],
+        "uncertainties": ["मूल निर्णय और वर्तमान वैधता का स्वतंत्र सत्यापन नहीं हुआ है।"],
+        "next_steps": ["मूल निर्णय का पैरा 9 पढ़कर लागू धारा और बाद के निर्णयों से मिलान करें।"],
+    }
+    captured = {}
+
+    class FakeClient:
+        def __init__(self, timeout):
+            captured["timeout"] = timeout
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def post(self, url, headers, **kwargs):
+            captured.update(url=url, headers=headers, body=kwargs["json"])
+            return httpx.Response(
+                200,
+                request=httpx.Request("POST", url),
+                json={"choices": [{"message": {"content": json.dumps(response_payload, ensure_ascii=False)}}]},
+            )
+
+    _mock_settings(monkeypatch)
+    monkeypatch.setattr(llm_gateway.httpx, "Client", FakeClient)
+    result = llm_gateway.generate_grounded_answer(research)
+    payload = json.loads(captured["body"]["messages"][1]["content"])
+
+    assert result["status"] == "generated_with_candidate_context"
+    assert result["citations"][0]["verification_status"] == "machine_extracted_candidate"
+    assert result["citations"][0]["pinpoint"] == pinpoint
+    assert "human verification" in result["answer"]
+    assert payload["verified_evidence"] == []
+    assert payload["verified_current_principles"] == []
+    assert payload["machine_extracted_candidates"][0]["id"] == "candidate-1"
+    assert payload["citation_index"][0]["pinpoints"] == [pinpoint]
 
 
 def test_gateway_rejects_citations_not_in_verified_context(monkeypatch):
@@ -170,7 +261,7 @@ def test_gateway_rejects_citations_not_in_verified_context(monkeypatch):
 
     _mock_settings(monkeypatch)
     monkeypatch.setattr(llm_gateway.httpx, "Client", FakeClient)
-    with pytest.raises(llm_gateway.LLMGatewayError, match="citation"):
+    with pytest.raises(llm_gateway.LLMGatewayError, match="allowed source context"):
         llm_gateway.generate_grounded_answer(_research())
 
 
@@ -255,7 +346,7 @@ def test_gateway_rejects_answer_without_verified_citations(monkeypatch):
 
     _mock_settings(monkeypatch)
     monkeypatch.setattr(llm_gateway.httpx, "Client", FakeClient)
-    with pytest.raises(llm_gateway.LLMGatewayError, match="no verified citations"):
+    with pytest.raises(llm_gateway.LLMGatewayError, match="no source citations"):
         llm_gateway.generate_grounded_answer(_research())
 
 
