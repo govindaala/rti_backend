@@ -288,7 +288,7 @@ def generate_grounded_answer(research: LegalApplicationResponse) -> dict[str, An
     if not _string_list(source_ids) and source_ids != []:
         raise LLMGatewayError("LLM gateway returned invalid source IDs")
     if any(item not in allowed_ids for item in source_ids):
-        raise LLMGatewayError("LLM gateway returned a citation outside verified context")
+        raise LLMGatewayError("LLM gateway returned a citation outside allowed source context")
     if not isinstance(citations, list):
         raise LLMGatewayError("LLM gateway returned invalid citations")
 
