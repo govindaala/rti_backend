@@ -68,7 +68,8 @@ def test_applicant_workspace_renders_conclusion_first_legal_answer() -> None:
     assert "/api/v1/analysis/checklist" not in script.text
     assert "renderLegalAnswer" in script.text
     assert "result.direct_answer" in script.text
-    assert "result.generated_answer" in script.text
+    assert "result.suppress_checklists" in script.text
+    assert "suppress_checklists: true" in script.text
     assert "result.fact_comparisons" in script.text
     assert "result.candidate_evidence" in script.text
     assert "result.verified_principles" in script.text
