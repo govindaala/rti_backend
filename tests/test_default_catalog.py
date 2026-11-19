@@ -10,8 +10,11 @@ def test_default_catalog_contains_only_cic_first_phase_sources():
         "https://cic.gov.in/",
         "https://cic.gov.in/decision",
         "https://cic.gov.in/rti_act",
+        "https://www.cic.gov.in/rti-disclosoures",
     }
-    assert len(DEFAULT_SOURCE_CATALOG) == 3
+    assert len(DEFAULT_SOURCE_CATALOG) == 4
+    disclosure_seed = next(item for item in DEFAULT_SOURCE_CATALOG if item["category"] == "official_disclosure")
+    assert disclosure_seed["jurisdiction"] == "central"
 
 
 def test_related_law_catalog_links_to_primary_sources():
