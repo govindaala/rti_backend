@@ -11,6 +11,7 @@ DEFAULT_SOURCE_CATALOG: tuple[dict[str, str], ...] = (
     {"name": "Central Information Commission — Decisions", "category": "information_commission", "jurisdiction": "central", "url": "https://cic.gov.in/"},
     {"name": "Central Information Commission — Decision search landing page (10 September 2016 split)", "category": "information_commission_decisions", "jurisdiction": "central", "url": "https://cic.gov.in/decision"},
     {"name": "RTI Act and Rules — CIC", "category": "legislation", "jurisdiction": "central", "url": "https://cic.gov.in/rti_act"},
+    {"name": "Central Information Commission — RTI Disclosure (Section 4(1)(b), published 11 August 2026)", "category": "official_disclosure", "jurisdiction": "central", "url": "https://www.cic.gov.in/rti-disclosoures"},
 )
 
 # आगे के चरणों के कानून-संदर्भ; ये CIC crawl queue का हिस्सा नहीं हैं।
