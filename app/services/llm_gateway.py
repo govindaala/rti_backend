@@ -369,10 +369,12 @@ def generate_grounded_answer(research: LegalApplicationResponse) -> dict[str, An
 
     if not _string_list(uncertainties) and uncertainties != []:
         raise LLMGatewayError("LLM gateway returned invalid uncertainty metadata")
+    uncertainties = uncertainties[:1]
     if not _string_list(next_steps):
         raise LLMGatewayError("LLM gateway returned invalid next steps")
     if not next_steps:
-        next_steps = research.next_steps
+        next_steps = research.next_steps[:1]
+    next_steps = next_steps[:1]
 
     candidate_cited = any(item["source_id"] in candidate_ids for item in normalized_citations)
     if candidate_cited:

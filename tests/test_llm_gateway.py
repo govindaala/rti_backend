@@ -382,3 +382,41 @@ def test_gateway_disabled_without_credentials(monkeypatch):
     _mock_settings(monkeypatch, llm_api_base_url=None, llm_api_key=None, llm_model=None)
     with pytest.raises(llm_gateway.LLMGatewayError, match="not configured"):
         llm_gateway.generate_grounded_answer(_research())
+
+
+
+def test_gateway_returns_one_uncertainty_and_one_recommended_action(monkeypatch):
+    response = _valid_model_response()
+    response["uncertainties"] = [
+        "आवेदन प्राप्ति की तारीख उपलब्ध नहीं है।",
+        "PIO का पूरा उत्तर भी उपलब्ध नहीं है।",
+    ]
+    response["next_steps"] = [
+        "प्राप्ति प्रमाण के आधार पर अपील में विलंब का मुद्दा उठाएँ।",
+        "सभी डाक रसीदें एकत्र करें।",
+        "बाद के निर्णयों की सूची खोलें।",
+    ]
+
+    class FakeClient:
+        def __init__(self, timeout):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def post(self, url, headers, **kwargs):
+            return httpx.Response(
+                200,
+                request=httpx.Request("POST", url),
+                json={"choices": [{"message": {"content": json.dumps(response, ensure_ascii=False)}}]},
+            )
+
+    _mock_settings(monkeypatch)
+    monkeypatch.setattr(llm_gateway.httpx, "Client", FakeClient)
+    result = llm_gateway.generate_grounded_answer(_research())
+
+    assert result["uncertainties"] == ["आवेदन प्राप्ति की तारीख उपलब्ध नहीं है।"]
+    assert result["next_steps"] == ["प्राप्ति प्रमाण के आधार पर अपील में विलंब का मुद्दा उठाएँ।"]

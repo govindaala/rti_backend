@@ -71,6 +71,9 @@ def test_applicant_workspace_renders_conclusion_first_legal_answer() -> None:
     assert "result.suppress_checklists" in script.text
     assert "suppress_checklists: true" in script.text
     assert "result.fact_comparisons" in script.text
+    assert "result.fact_gaps[0]" in script.text
+    assert "result.next_steps.slice(0, 1)" in script.text
+    assert "result.fact_gaps.forEach" not in script.text
     assert "result.candidate_evidence" in script.text
     assert "result.verified_principles" in script.text
     assert "result.common_legal_checks" not in script.text

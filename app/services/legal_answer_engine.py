@@ -134,17 +134,15 @@ def build_legal_answer(
 
     fact_gaps = _question_specific_fact_gaps(intent, topics)
     next_steps = [
-        "मूल RTI आवेदन, डाक/ऑनलाइन प्राप्ति प्रमाण और PIO का पूरा उत्तर साथ रखें।",
-        "प्रत्येक लागू शर्त और अपवाद को अपने वास्तविक तथ्यों से अलग-अलग मिलाएँ।",
-        "नीचे दिए स्रोत लिंक खोलकर मूल निर्णय, संबंधित अनुच्छेद और बाद के निर्णय जाँचें।",
-    ]
-    if not current and candidate_evidence:
-        next_steps.insert(
-            0,
-            "मशीन-निकाले candidate अंशों को मूल निर्णय से मिलाकर पक्षों के तर्क, "
-            "न्यायालय/आयोग की finding और operative order अलग पहचानें; candidate को "
-            "अपने-आप ratio या binding precedent न मानें।",
+        _recommended_next_step(
+            intent=intent,
+            current=current,
+            evidence=evidence,
+            not_applied=not_applied,
+            candidate_evidence=candidate_evidence,
+            fact_gaps=fact_gaps,
         )
+    ]
 
     return {
         "answer_status": status,
@@ -166,6 +164,81 @@ def build_legal_answer(
     }
 
 
+
+
+def _recommended_next_step(
+    *,
+    intent: str,
+    current: list[dict[str, Any]],
+    evidence: list[dict[str, Any]],
+    not_applied: list[dict[str, Any]],
+    candidate_evidence: list[dict[str, Any]],
+    fact_gaps: list[str],
+) -> str:
+    """Return one question-specific action, never a generic user-facing checklist."""
+    if current:
+        primary = current[0]
+        title = str(
+            primary.get("source_title") or primary.get("authority") or "सत्यापित निर्णय"
+        )
+        location = _pinpoint_label(primary.get("pinpoint_citations") or [])
+        source_span = f"के {location} वाले सत्यापित अंश" if location else "के सत्यापित सिद्धांत"
+        return (
+            f"{title} {source_span} को मूल निर्णय से मिलाकर अपने PIO के लिखित उत्तर/रिकॉर्ड "
+            "के उसी मुद्दे से तुलना करें; तथ्य मेल खाते हों तभी उस pinpoint को अगली "
+            "लिखित प्रस्तुति में उद्धृत करें।"
+        )
+
+    if candidate_evidence:
+        candidate = candidate_evidence[0]
+        title = str(candidate.get("title") or candidate.get("canonical_url") or "यह स्रोत")
+        locations = _candidate_pinpoint_references(candidate)
+        location = _pinpoint_label(locations)
+        source_span = f"उसके {location} अंश" if location else "उसके finding और अंतिम आदेश"
+        return (
+            f"{title} अभी machine-extracted candidate है; मूल स्रोत में {source_span} "
+            "पढ़कर पुष्टि करें कि अंश आयोग/न्यायालय की finding या operative order है। "
+            "पुष्टि से पहले इसे verified precedent के रूप में उद्धृत न करें।"
+        )
+
+    related = evidence[0] if evidence else (not_applied[0] if not_applied else None)
+    if related:
+        title = str(related.get("title") or related.get("source_title")
+                    or related.get("canonical_url") or "संबंधित निर्णय")
+        return (
+            f"{title} के मूल पाठ में निर्णायक तथ्य और अंतिम आदेश को अपने PIO के लिखित "
+            "उत्तर से मिलाएँ; तथ्य अलग हों तो उसे लागू ratio बताने के बजाय distinguishing "
+            "authority के रूप में रखें।"
+        )
+
+    generic_gap = "माँगी गई सूचना का सटीक विवरण और संबंधित लोक प्राधिकरण/शाखा।"
+    decisive_gap = next((gap for gap in fact_gaps if gap != generic_gap), None)
+    if decisive_gap is None and fact_gaps:
+        decisive_gap = fact_gaps[0]
+    if decisive_gap:
+        return f"अभी केवल यह निर्णायक तथ्य स्पष्ट करें: {decisive_gap}"
+    return "अंतिम निष्कर्ष देने से पहले अपने RTI आवेदन की प्राप्ति-तिथि और PIO का लिखित उत्तर स्पष्ट करें。"
+
+
+def _pinpoint_label(pinpoints: list[dict[str, Any]]) -> str:
+    """Format only a source-supplied paragraph/page; never infer a pinpoint."""
+    if not pinpoints or not isinstance(pinpoints[0], dict):
+        return ""
+    point = pinpoints[0]
+    paragraph = point.get("paragraph_reference") or point.get("paragraph")
+    page = point.get("page_reference") or point.get("page")
+    labels: list[str] = []
+    if paragraph:
+        paragraph_text = str(paragraph).strip()
+        if paragraph_text and not paragraph_text.lower().startswith(("पैरा", "para")):
+            paragraph_text = "पैरा " + paragraph_text
+        labels.append(paragraph_text)
+    if page:
+        page_text = str(page).strip()
+        if page_text and not page_text.lower().startswith(("पृष्ठ", "page", "pdf पृष्ठ")):
+            page_text = "पृष्ठ " + page_text
+        labels.append(page_text)
+    return " / ".join(labels)
 
 
 def _has_question_level_match(principle: dict[str, Any]) -> bool:

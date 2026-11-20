@@ -232,12 +232,12 @@ function renderLegalAnswer(result) {
     result.exceptions_to_check.forEach(item => addText("", item));
   }
   if (result.fact_gaps?.length) {
-    addHeading("निष्कर्ष बदल सकने वाला अनुपलब्ध तथ्य");
-    result.fact_gaps.forEach(item => addText("", item));
+    addHeading("निष्कर्ष बदल सकने वाला एक अनुपलब्ध तथ्य");
+    addText("", result.fact_gaps[0]);
   }
   if (result.next_steps?.length) {
     addHeading("अनुशंसित अगला कदम");
-    result.next_steps.forEach(item => addText("", item));
+    result.next_steps.slice(0, 1).forEach(item => addText("", item));
   }
   if (result.fact_comparisons?.length) {
     addHeading("निर्णय के तथ्यों से तुलना");

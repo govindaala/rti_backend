@@ -334,3 +334,70 @@ def test_three_keyword_overlap_without_reviewed_fact_comparison_is_not_applied()
     assert result["answer_status"] == "evidence_found_no_verified_ratio"
     assert result["legal_basis"] == []
     assert principle["principle_text"] not in result["direct_answer"]
+
+
+
+def test_next_step_is_one_question_specific_action_for_verified_ratio():
+    principle = {
+        "document_id": "d14",
+        "source_title": "CIC order",
+        "source_url": "https://cic.gov.in/order/14",
+        "authority": "CIC",
+        "issue": "विलंब",
+        "principle_text": "लिखित कारणों की जाँच आवश्यक है।",
+        "pinpoint_citations": [{"paragraph": "7"}],
+        "legal_status": "verified_current",
+        "principle_type": "ratio_decidendi",
+        "application_signal": "fact_comparison_confirmed",
+        "fact_comparison": {
+            "verification_status": "human_verified",
+            "material_fact_matches": ["आवेदन और उत्तर की तारीख का मुद्दा"],
+            "pinpoint_citations": [{"paragraph": "7"}],
+        },
+    }
+    result = build_legal_answer(
+        "PIO ने देर से उत्तर दिया", "delay_or_deadline", ["delay_and_time_limit"],
+        [], [principle],
+    )
+
+    assert len(result["next_steps"]) == 1
+    assert "CIC order" in result["next_steps"][0]
+    assert "पैरा 7" in result["next_steps"][0]
+    assert "तभी" in result["next_steps"][0]
+
+
+def test_candidate_next_step_is_one_source_verification_action():
+    candidate = {
+        "document_id": "candidate-14",
+        "title": "CIC candidate order",
+        "canonical_url": "https://cic.gov.in/order/14.pdf",
+        "verification_status": "machine_extracted_candidate",
+        "decision_candidates": [{
+            "kind": "finding_candidate",
+            "excerpt": "The Commission observes that the record search was incomplete.",
+            "page_reference": "PDF पृष्ठ 4",
+            "source_url": "https://cic.gov.in/order/14.pdf",
+            "review_status": "human_review_required",
+        }],
+    }
+    result = build_legal_answer(
+        "रिकॉर्ड खोज अधूरी थी", "record_availability", ["record_search_and_non_availability"],
+        [], [], candidate_evidence=[candidate],
+    )
+
+    assert len(result["next_steps"]) == 1
+    assert "CIC candidate order" in result["next_steps"][0]
+    assert "PDF पृष्ठ 4" in result["next_steps"][0]
+    assert "machine-extracted candidate" in result["next_steps"][0]
+    assert "verified precedent" in result["next_steps"][0]
+
+
+def test_no_source_returns_only_the_first_decisive_fact_gap_as_next_action():
+    result = build_legal_answer(
+        "PIO ने समय पर जवाब नहीं दिया; अब क्या करूँ?",
+        "delay_or_deadline", ["delay_and_time_limit"], [], [],
+    )
+
+    assert len(result["next_steps"]) == 1
+    assert "PIO को किस तारीख को मिला" in result["next_steps"][0]
+    assert "माँगी गई सूचना का सटीक विवरण" not in result["next_steps"][0]
